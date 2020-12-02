@@ -7,6 +7,9 @@ function add_perturbations!(state, localgeo)
     if z <= FT(50) # Add random perturbations to bottom 50m of model
         state.ρe += (rand() - 0.5) * state.ρe / 100
     end
+
+function set_clima_parameters(filename)
+    eval(:(include($filename)))
 end
 
 function main()
@@ -20,6 +23,11 @@ function main()
         metavar = "prescribed|bulk"
         arg_type = String
         default = "bulk"
+
+        "--CP-Version"
+        help = "specify CLIMAParameters version"
+        arg_type = Union{String, Nothing}
+        default = nothing
     end
 
     cl_args = ClimateMachine.init(parse_clargs = true, custom_clargs = sbl_args)
@@ -97,6 +105,21 @@ function main()
         check_cons = check_cons,
         check_euclidean_distance = true,
     )
+end
+
+param_args = ArgParseSettings(autofix_names = true)
+add_arg_group!(param_args, "ParameterVersion")
+@add_arg_table! param_args begin
+    "--CP-Version"
+    help = "specify CLIMAParameters version"
+    arg_type = Union{String, Nothing}
+    default = nothing
+end
+
+parsed_args = parse_args(ARGS, param_args)
+if !isnothing(parsed_args["CP_Version"])
+    filename = "clima_param_defs_$(parsed_args["CP_Version"]).jl"
+    set_clima_parameters(filename)
 end
 
 main()
