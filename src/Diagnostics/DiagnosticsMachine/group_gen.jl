@@ -165,6 +165,7 @@ function generate_create_vars_arrays(
         nelems = dv_dg_elems_length(cfg, dvtype)
         cva_ex = quote
             $arr_name = Array{FT}(undef, $npoints, $nvars, $nelems)
+            fill!($arr_name, 0)
         end
         push!(cva_exs, cva_ex)
     end
@@ -178,18 +179,16 @@ function generate_collect_calls(
     cfg,
     dvtype_dvars_map,
 )
-    all_cc_exs = []
+    cc_exs = []
     for (dvtype, dvlst) in dvtype_dvars_map
         dvt = split(String(Symbol(dvtype)), ".")[end]
         dvt_short = uppers_in(dvt)
         arr_name = Symbol("vars_", dvt_short, "_dg_array")
-        nvars = length(dvlst)
         pt = dv_dg_points_index(cfg, dvtype)
         elem = dv_dg_elems_index(cfg, dvtype)
         var_impl = Symbol("dv_", dvt)
 
-        cc_exs = []
-        for dvar in dvlst
+        for (v, dvar) in enumerate(dvlst)
             impl_args = dv_args(cfg, dvar)
             AT1 = impl_args[1][2] # the type of the first argument
             if isa_bl(AT1)
@@ -200,34 +199,25 @@ function generate_collect_calls(
                 AN1 = impl_args[1][1] # the name of the first argument
                 impl_extra_params = (Symbol("bl.", AN1),)
             end
-            cc_ex = quote
-                dv_op(
+            cc_ex = dv_op(
+                cfg,
+                dvtype,
+                :($arr_name[$pt, $v, $elem]),#getindex($arr_name, $pt, v, $elem),
+                :($(var_impl)(
                     $cfg,
-                    $dvtype,
-                    getindex($arr_name, $pt, v, $elem),
-                    $(var_impl)(
-                        $cfg,
-                        $dvar,
-                        $(impl_extra_params...),
-                        bl,
-                        states,
-                        curr_time,
-                        cache,
-                    ),
-                    MH,
-                )
-            end
+                    $dvar,
+                    $(impl_extra_params...),
+                    bl,
+                    states,
+                    curr_time,
+                    cache,
+                )),
+            )
             push!(cc_exs, cc_ex)
         end
-        dvtype_cc_ex = quote
-            for v in 1:$nvars
-                $(cc_exs...)
-            end
-        end
-        push!(all_cc_exs, dvtype_cc_ex)
     end
 
-    return Expr(:block, (all_cc_exs...))
+    return Expr(:block, (cc_exs...))
 end
 
 # Generate the nested loops to traverse the DG grid within which we extract
@@ -251,7 +241,6 @@ function generate_dg_collection(
                 ijk = i + Nq * ((j - 1) + Nq * (k - 1))
                 evk = Nqk * (ev - 1) + k
                 MH = vgeo[ijk, grid.MHid, e]
-                z = AtmosCollected.zvals[evk]
                 states = States(
                     extract_state(bl, state_data, ijk, e, Prognostic()),
                     extract_state(
@@ -270,7 +259,37 @@ function generate_dg_collection(
     end
 end
 
-function generate_interpolation(dvars)
+# Generate any reductions needed for the data collected thus far.
+function generate_dg_reductions(
+    ::CollectOnInterpolatedGrid,
+    cfg,
+    dvtype_dvars_map,
+)
+end
+function generate_dg_reductions(::InterpolationType, cfg, dvtype_dvars_map)
+    red_exs = []
+    for (dvtype, dvlst) in dvtype_dvars_map
+        dvt_short = uppers_in(split(String(Symbol(dvtype)), ".")[end])
+        arr_name = Symbol("vars_", dvt_short, "_dg_array")
+        red_ex = dv_reduce(cfg, dvtype, arr_name)
+        push!(red_exs, red_ex)
+    end
+
+    return Expr(:block, (red_exs...))
+end
+
+# TODO: here
+function generate_interpolation(
+    ::NoInterpolation,
+    cfg,
+    dvtype_dvars_map,
+)
+end
+function generate_interpolation(
+    ::InterpolationType,
+    cfg,
+    dvtype_dvars_map,
+)
     if interpolate != :NoInterpolation
         quote
             all_state_data = nothing
@@ -355,10 +374,10 @@ function generate_collect_fun(
             # Perform any reductions necessary.
             $(generate_dg_reductions(intrp(), cfg(), dvtype_dvars_map))
 
-            #=
             # Interpolate and accumulate if needed.
             $(generate_interpolation(intrp(), cfg(), dvtype_dvars_map))
 
+            #=
             # Traverse the interpolated grid and collect diagnostics if needed.
             $(generate_i_collection(dvars))
             if interpolate

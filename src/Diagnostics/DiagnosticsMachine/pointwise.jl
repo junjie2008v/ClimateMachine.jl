@@ -46,7 +46,7 @@ function dv_op(
     ::Type{PointwiseDiagnostic},
     x,
     y,
-    scale_with,
+    scale_with = 1,
 )
     x = y
 end

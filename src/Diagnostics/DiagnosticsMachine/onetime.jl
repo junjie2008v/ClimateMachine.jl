@@ -19,23 +19,20 @@ function collect_onetime(mpicomm, dg, Q)
 
         vgeo = array_device(Q) isa CPU ? grid.vgeo : Array(grid.vgeo)
 
-        Collected.zvals = zeros(FT, Nqk * nvertelem)
-        Collected.ΣMH_z = zeros(FT, Nqk * nvertelem)
+        Collected.ΣMH_z = zeros(FT, Nqk, nvertelem)
 
         for eh in 1:nhorzelem, ev in 1:nvertelem
             e = ev + (eh - 1) * nvertelem
             for k in 1:Nqk, j in 1:Nq, i in 1:Nq
                 ijk = i + Nq * ((j - 1) + Nq * (k - 1))
                 evk = Nqk * (ev - 1) + k
-                z = vgeo[ijk, grid.x3id, e]
                 MH = vgeo[ijk, grid.MHid, e]
-                Collected.zvals[evk] = z
-                Collected.ΣMH_z[evk] += MH
+                Collected.ΣMH_z[k, ev] += MH
             end
         end
 
-        # compute the full number of points on a slab
-        MPI.Allreduce!(Collected.ΣMH_z, +, mpicomm)
+        # compute the full number of points on a slab on rank 0
+        MPI.Reduce!(Collected.ΣMH_z, +, 0, mpicomm)
 
         Collected.onetime_done = true
     end

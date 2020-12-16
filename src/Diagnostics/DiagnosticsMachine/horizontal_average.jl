@@ -32,17 +32,28 @@ function dv_dg_dimnames(::ClimateMachineConfigType, ::Type{HorizontalAverage})
     ("z",)
 end
 function dv_dg_dimranges(::ClimateMachineConfigType, ::Type{HorizontalAverage})
-    (:(AtmosCollected.zvals),)
+    (:(get_z(grid)),)
 end
 
 function dv_op(
     ::ClimateMachineConfigType,
     ::Type{HorizontalAverage},
-    x,
-    y,
-    scale_with = 1,
+    lhs,
+    rhs,
 )
-    x += y * scale_with
+    :($lhs += MH * $rhs)
+end
+function dv_reduce(
+    ::ClimateMachineConfigType,
+    ::Type{HorizontalAverage},
+    array_name,
+)
+    quote
+        MPI.Reduce!($array_name, +, 0, mpicomm)
+        if mpirank == 0
+            $array_name ./= Collected.ΣMH_z
+        end
+    end
 end
 
 macro horizontal_average(impl, config_type, name)
