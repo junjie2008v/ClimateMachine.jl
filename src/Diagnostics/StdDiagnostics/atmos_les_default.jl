@@ -11,8 +11,10 @@ using ..DiagnosticsMachine
     Nothing,
     # user initialization function
     (_...) -> nothing,
-    # :CollectOnInterpolatedGrid | :InterpolateAfterCollection | :NoInterpolation
-    :NoInterpolation,
+    # CollectOnInterpolatedGrid | InterpolateAfterCollection | NoInterpolation
+    NoInterpolation,
+    #InterpolateAfterCollection,
+    #CollectOnInterpolatedGrid,
     # simple horizontal averages
     u,
     v,

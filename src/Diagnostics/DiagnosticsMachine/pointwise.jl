@@ -6,7 +6,7 @@ A diagnostic with the same dimensions as the original grid (DG or interpolated).
 abstract type PointwiseDiagnostic <: DiagnosticVar end
 dv_PointwiseDiagnostic(
     ::ClimateMachineConfigType,
-    ::Union{PointwiseDiagnostic},
+    ::PointwiseDiagnostic,
     ::BalanceLaw,
     ::States,
     ::AbstractFloat,
@@ -41,12 +41,20 @@ function dv_dimnames(
     tuple(collect(keys(out_dims))...)
 end
 
-dv_op(::ClimateMachineConfigType, ::PointwiseDiagnostic, x, y) = x = y
+function dv_op(
+    ::ClimateMachineConfigType,
+    ::Type{PointwiseDiagnostic},
+    x,
+    y,
+    scale_with,
+)
+    x = y
+end
 
 macro pointwise_diagnostic(impl, config_type, name)
     iex = quote
         $(generate_dv_interface(:PointwiseDiagnostic, config_type, name))
-        $(generate_dv_function(:PointwiseDiagnostic, config_type, [name], impl))
+        $(generate_dv_function(:PointwiseDiagnostic, config_type, name, impl))
     end
     esc(MacroTools.prewalk(unblock, iex))
 end
@@ -68,7 +76,7 @@ macro pointwise_diagnostic(
             long_name,
             standard_name,
         ))
-        $(generate_dv_function(:PointwiseDiagnostic, config_type, [name], impl))
+        $(generate_dv_function(:PointwiseDiagnostic, config_type, name, impl))
     end
     esc(MacroTools.prewalk(unblock, iex))
 end

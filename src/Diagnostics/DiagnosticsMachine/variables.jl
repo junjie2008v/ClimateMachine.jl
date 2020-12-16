@@ -149,37 +149,27 @@ function generate_dv_interface(
     end
 end
 
-# Helper to generate the implementation function for one or more
-# diagnostic variables.
-function generate_dv_function(dvtype, config_type, names, impl)
+# Helper to generate the implementation function for a diagnostic variable.
+function generate_dv_function(dvtype, config_type, name, impl)
     dvfun = Symbol("dv_", dvtype)
-    dvtypname_args = map(
-        n -> :($n),
-        map(n -> Symbol(dv_type_name(dvtype, config_type, n)), names),
-    )
+    dvtypname = Symbol(dv_type_name(dvtype, config_type, name))
     @capture(impl, ((args__,),) -> (body_)) ||
         @capture(impl, (args_) -> (body_)) ||
         error("Bad implementation for $(esc(names[1]))")
     split_fun_args = map(splitarg, args)
     fun_args = map(a -> :($(a[1])::$(a[2])), split_fun_args)
     quote
-        function dv_args(::$config_type, ::Union{$(dvtypname_args...)})
+        function dv_args(::$config_type, ::$dvtypname)
             $split_fun_args
         end
         function $dvfun(
             ::$config_type,
-            ::Union{$(dvtypname_args...)},
+            ::$dvtypname,
             $(fun_args...),
         )
             $body
         end
     end
-end
-
-# Interface to generate an implementation function for one or more
-# diagnostic variables.
-macro diagnostic_impl(impl, dvtype, config_type, names...)
-    generate_dv_function(dvtype, config_type, names, impl)
 end
 
 """

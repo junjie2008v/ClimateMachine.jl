@@ -1,16 +1,3 @@
-# Given an expression that is either a symbol which is a type name or a
-# Union of types, each of which shares the same supertype, return the
-# supertype.
-parent_type(sym::Symbol) = supertype(getfield(@__MODULE__, sym))
-function parent_type(ex::Expr)
-    @assert ex.head == :curly && ex.args[1] == :Union
-    st = supertype(getfield(@__MODULE__, ex.args[2]))
-    for ut in ex.args[3:end]
-        otherst = supertype(getfield(@__MODULE__, ut))
-        @assert otherst == st
-    end
-    return st
-end
 # Return `true` if the specified symbol is a type name that is a subtype
 # of `BalanceLaw` and `false` otherwise.
 isa_bl(sym::Symbol) = any(
@@ -20,116 +7,6 @@ isa_bl(sym::Symbol) = any(
 isa_bl(ex) = false
 
 uppers_in(s) = foldl((f, c) -> isuppercase(c) ? f * c : f, s, init = "")
-
-# Generate a `VariableTemplates` defining function.
-function generate_vars_fun(varsfunname, DN, DT, vardecls, compdecls)
-    quote
-        function $varsfunname($DN::$DT, FT)
-            @vars begin
-                $(vardecls...)
-                $(compdecls...)
-            end
-        end
-    end
-end
-
-# Generate the `VariableTemplates` defining functions for the specified
-# `dvars`.
-function generate_vars_funs(
-    name,
-    config_type,
-    params_type,
-    init_fun,
-    interpolate,
-    dvars,
-    dvtype_dvars_map,
-)
-
-    CT = getfield(ConfigTypes, config_type)
-    vars_funs = Any[]
-
-    # Generate `vars_*` functions for each type of diagnostic variable.
-    for (dvtype, dvlst) in dvtype_dvars_map
-        dvtypename = split(String(Symbol(dvtype)), ".")[end]
-        varsfunname = Symbol("vars_", name, "_", uppers_in(dvtypename))
-
-        DT_name_map = Dict() # dispatch type to argument name
-        DT_var_map = Dict()  # dispatch type to list of variable definitions
-
-        # Look at each diagnostic variable implementation; the first
-        # argument is used for dispatch and is either the `BalanceLaw` or a
-        # component of the `BalanceLaw`. Group the diagnostic variables by
-        # this dispatch type.
-        for dvar in dvlst
-            dispatch_arg = first(dv_args(CT(), dvar))
-            DN = dispatch_arg[1] # the name
-            DT = dispatch_arg[2] # the type
-            compname = get(DT_name_map, DT, nothing)
-            if isnothing(compname)
-                DT_name_map[DT] = DN
-            else
-                # if a different name is used, we _could_ rewrite the function...
-                @assert compname == DN
-            end
-            push!(
-                get!(DT_var_map, DT, Any[]),
-                :($(Symbol(dv_name(CT(), dvar)))::FT),
-            )
-        end
-
-        # Generate a function for each dispatch type.
-        for (DT, dvlst) in DT_var_map
-            # There should be a function for the `BalanceLaw`, and this may
-            # contain component declarations, i.e. calls to the other `vars`
-            # functions. Find which calls have to be inserted.
-            complst = Any[]
-            if isa_bl(DT)
-                for (otherDT, compname) in DT_name_map
-                    if otherDT != DT
-                        push!(
-                            complst,
-                            :(
-                                $(
-                                    compname
-                                )::$varsfunname(
-                                    $(DT_name_map[DT]).$compname,
-                                    FT,
-                                )
-                            ),
-                        )
-                    end
-                end
-            else
-                # For components of the `BalanceLaw`, add an empty function
-                # for the parent of the dispatch type.
-                push!(
-                    vars_funs,
-                    generate_vars_fun(
-                        varsfunname,
-                        DT_name_map[DT],
-                        parent_type(DT),
-                        Any[],
-                        Any[],
-                    ),
-                )
-            end
-
-            # Add the `vars_` function.
-            push!(
-                vars_funs,
-                generate_vars_fun(
-                    varsfunname,
-                    DT_name_map[DT],
-                    DT,
-                    dvlst,
-                    complst,
-                ),
-            )
-        end
-    end
-
-    return Expr(:block, (vars_funs...))
-end
 
 # Generate the common definitions used in many places.
 function generate_common_defs()
@@ -153,53 +30,48 @@ function generate_common_defs()
 end
 
 # Generate the `dims` dictionary for `Writers.init_data`.
-function generate_init_dims(config_type, interpolate, dvtype_dvars_map)
-    if interpolate == :NoInterpolation
-        CT = getfield(ConfigTypes, config_type)
-        dimslst = Any[]
-        for dvtype in keys(dvtype_dvars_map)
-            dimnames = dv_dg_dimnames(CT(), dvtype)
-            dimranges = dv_dg_dimranges(CT(), dvtype)
-            for (dimname, dimrange) in zip(dimnames, dimranges)
-                lhs = :($dimname)
-                rhs = :(collect($dimrange), Dict())
-                push!(dimslst, :($lhs => $rhs))
-            end
+function generate_init_dims(::NoInterpolation, cfg, dvtype_dvars_map)
+    dimslst = Any[]
+    for dvtype in keys(dvtype_dvars_map)
+        dimnames = dv_dg_dimnames(cfg, dvtype)
+        dimranges = dv_dg_dimranges(cfg, dvtype)
+        for (dimname, dimrange) in zip(dimnames, dimranges)
+            lhs = :($dimname)
+            rhs = :(collect($dimrange), Dict())
+            push!(dimslst, :($lhs => $rhs))
         end
+    end
 
-        quote
-            OrderedDict($(Expr(:tuple, dimslst...))...)
+    quote
+        OrderedDict($(Expr(:tuple, dimslst...))...)
+    end
+end
+function generate_init_dims(::InterpolationType, cfg, dvtype_dvars_map)
+    quote
+        dims = dimensions(interpol)
+        if interpol isa InterpolationCubedSphere
+            # Adjust `level` on the sphere.
+            level_val = dims["level"]
+            dims["level"] = (
+                level_val[1] .- FT(planet_radius(Settings.param_set)),
+                level_val[2],
+            )
         end
-
-    else # interpolation
-        quote
-            dims = dimensions(interpol)
-            if interpol isa InterpolationCubedSphere
-                # Adjust `level` on the sphere.
-                level_val = dims["level"]
-                dims["level"] = (
-                    level_val[1] .- FT(planet_radius(Settings.param_set)),
-                    level_val[2],
-                )
-            end
-            dims
-        end
+        dims
     end
 end
 
+get_dimnames(::NoInterpolation, cfg, dvtype) = dv_dg_dimnames(cfg, dvtype)
+get_dimnames(::InterpolationType, cfg, dvtype) = :(tuple(collect(keys(dims))))
+
 # Generate the `vars` dictionary for `Writers.init_data`.
-function generate_init_vars(config_type, interpolate, dvtype_dvars_map)
-    CT = getfield(ConfigTypes, config_type)
+function generate_init_vars(intrp, cfg, dvtype_dvars_map)
     varslst = Any[]
     for (dvtype, dvlst) in dvtype_dvars_map
         for dvar in dvlst
-            lhs = :($(dv_name(CT(), dvar)))
-            if interpolate == :NoInterpolation
-                dimnames = dv_dg_dimnames(CT(), dvtype)
-            else
-                dimnames = :(tuple(collect(keys(dims))))
-            end
-            rhs = :($dimnames, FT, $(dv_attrib(CT(), dvar)))
+            lhs = :($(dv_name(cfg, dvar)))
+            dimnames = get_dimnames(intrp, cfg, dvtype)
+            rhs = :($dimnames, FT, $(dv_attrib(cfg, dvar)))
             push!(varslst, :($lhs => $rhs))
         end
     end
@@ -218,11 +90,11 @@ function generate_init_fun(
     params_type,
     init_fun,
     interpolate,
-    dvars,
     dvtype_dvars_map,
 )
     init_name = Symbol(name, "_init")
-    CT = getfield(ConfigTypes, config_type)
+    cfg = getfield(ConfigTypes, config_type)
+    intrp = getfield(@__MODULE__, interpolate)
     quote
         function $init_name(dgngrp, curr_time)
             $(generate_common_defs())
@@ -230,12 +102,12 @@ function generate_init_fun(
             $(init_fun)(dgngrp, curr_time)
 
             if dgngrp.onetime
-                collect_onetime(Settings.mpicomm, Settings.dg, Settings.Q)
+                collect_onetime(mpicomm, dg, Q)
             end
 
             if mpirank == 0
-                dims = $(generate_init_dims(config_type, interpolate, dvtype_dvars_map))
-                vars = $(generate_init_vars(config_type, interpolate, dvtype_dvars_map))
+                dims = $(generate_init_dims(intrp(), cfg(), dvtype_dvars_map))
+                vars = $(generate_init_vars(intrp(), cfg(), dvtype_dvars_map))
 
                 # create the output file
                 dprefix = @sprintf(
@@ -273,18 +145,26 @@ end
 
 # Generate code to create the necessary arrays for the diagnostics
 # variables.
-function generate_create_vars_arrays(name, config_type, dvtype_dvars_map)
-    CT = getfield(ConfigTypes, config_type)
+function generate_create_vars_arrays(
+    ::CollectOnInterpolatedGrid,
+    cfg,
+    dvtype_dvars_map,
+)
+end
+function generate_create_vars_arrays(
+    ::InterpolationType,
+    cfg,
+    dvtype_dvars_map,
+)
     cva_exs = []
     for (dvtype, dvlst) in dvtype_dvars_map
         dvt_short = uppers_in(split(String(Symbol(dvtype)), ".")[end])
-        arr_name = Symbol("vars_", dvt_short, "_array")
-        varsfunname = Symbol("vars_", name, "_", dvt_short)
-        npoints = dv_dg_points_range(CT(), dvtype)
-        nelems = dv_dg_elems_range(CT(), dvtype)
+        arr_name = Symbol("vars_", dvt_short, "_dg_array")
+        npoints = dv_dg_points_length(cfg, dvtype)
+        nvars = length(dvlst)
+        nelems = dv_dg_elems_length(cfg, dvtype)
         cva_ex = quote
-            nvars = varsize($(varsfunname)(bl, FT))
-            $(arr_name) = Array{FT}(undef, $(npoints), nvars, $(nelems))
+            $arr_name = Array{FT}(undef, $npoints, $nvars, $nelems)
         end
         push!(cva_exs, cva_ex)
     end
@@ -293,50 +173,78 @@ end
 
 # Generate calls to the implementations for the `DiagnosticVar`s in this
 # group and store the results.
-function generate_collect_calls(name, config_type, dvtype_dvars_map)
-    CT = getfield(ConfigTypes, config_type)
-    cc_exs = []
+function generate_collect_calls(
+    ::InterpolationType,
+    cfg,
+    dvtype_dvars_map,
+)
+    all_cc_exs = []
     for (dvtype, dvlst) in dvtype_dvars_map
-        dvt_short = uppers_in(split(String(Symbol(dvtype)), ".")[end])
-        vars_name = Symbol("vars_", dvt_short)
+        dvt = split(String(Symbol(dvtype)), ".")[end]
+        dvt_short = uppers_in(dvt)
+        arr_name = Symbol("vars_", dvt_short, "_dg_array")
+        nvars = length(dvlst)
+        pt = dv_dg_points_index(cfg, dvtype)
+        elem = dv_dg_elems_index(cfg, dvtype)
+        var_impl = Symbol("dv_", dvt)
+
+        cc_exs = []
         for dvar in dvlst
-            # TODO: call_ex = 
+            impl_args = dv_args(cfg, dvar)
+            AT1 = impl_args[1][2] # the type of the first argument
+            if isa_bl(AT1)
+                impl_extra_params = ()
+            else
+                AT2 = impl_args[2][2] # the type of the second argument
+                @assert isa_bl(AT2)
+                AN1 = impl_args[1][1] # the name of the first argument
+                impl_extra_params = (Symbol("bl.", AN1),)
+            end
             cc_ex = quote
                 dv_op(
-                    $(CT()),
-                    $(dvtype),
-                    getproperty($(vars_name), $(Symbol(dv_name(CT(), dvar)))),
+                    $cfg,
+                    $dvtype,
+                    getindex($arr_name, $pt, v, $elem),
+                    $(var_impl)(
+                        $cfg,
+                        $dvar,
+                        $(impl_extra_params...),
+                        bl,
+                        states,
+                        curr_time,
+                        cache,
+                    ),
                     MH,
                 )
             end
             push!(cc_exs, cc_ex)
         end
+        dvtype_cc_ex = quote
+            for v in 1:$nvars
+                $(cc_exs...)
+            end
+        end
+        push!(all_cc_exs, dvtype_cc_ex)
     end
-    println(cc_exs)
 
-    return Expr(:block, (cc_exs...))
+    return Expr(:block, (all_cc_exs...))
 end
 
 # Generate the nested loops to traverse the DG grid within which we extract
 # the various states and then generate the individual collection calls.
-function generate_dg_collection(name, config_type, dvtype_dvars_map)
-    CT = getfield(ConfigTypes, config_type)
-    gv_exs = []
-    for (dvtype, dvlst) in dvtype_dvars_map
-        dvt_short = uppers_in(split(String(Symbol(dvtype)), ".")[end])
-        vars_name = Symbol("vars_", dvt_short)
-        arr_name = Symbol("vars_", dvt_short, "_array")
-        varsfunname = Symbol("vars_", name, "_", dvt_short)
-        pt = dv_dg_points_index(CT(), dvtype)
-        elem = dv_dg_elems_index(CT(), dvtype)
-        gv_ex = quote
-            $(vars_name) = Vars{$(varsfunname)(bl, FT)}(
-                view($(arr_name), $(pt), :, $(elem))
-            )
-        end
-        push!(gv_exs, gv_ex)
-    end
+function generate_dg_collection(
+    ::CollectOnInterpolatedGrid,
+    cfg,
+    dvtype_dvars_map,
+)
+end
+function generate_dg_collection(
+    intrp::InterpolationType,
+    cfg,
+    dvtype_dvars_map,
+)
     quote
+        cache = Dict{Symbol, Any}()
         for eh in 1:nhorzelem, ev in 1:nvertelem
             e = ev + (eh - 1) * nvertelem
             for k in 1:Nqk, j in 1:Nq, i in 1:Nq
@@ -355,10 +263,10 @@ function generate_dg_collection(name, config_type, dvtype_dvars_map)
                     ),
                     extract_state(bl, aux_data, ijk, e, Auxiliary()),
                 )
-                $(gv_exs...)
-                $(generate_collect_calls(name, config_type, dvtype_dvars_map))
+                $(generate_collect_calls(intrp, cfg, dvtype_dvars_map))
             end
         end
+        empty!(cache)
     end
 end
 
@@ -429,26 +337,30 @@ function generate_collect_fun(
     params_type,
     init_fun,
     interpolate,
-    dvars,
     dvtype_dvars_map,
 )
     collect_name = Symbol(name, "_collect")
-    CT = getfield(ConfigTypes, config_type)
+    cfg = getfield(ConfigTypes, config_type)
+    intrp = getfield(@__MODULE__, interpolate)
     quote
         function $collect_name(dgngrp, curr_time)
             $(generate_common_defs())
             $(generate_array_copies())
-            $(generate_create_vars_arrays(name, config_type, dvtype_dvars_map))
+            interpol = dgngrp.interpol
+            $(generate_create_vars_arrays(intrp(), cfg(), dvtype_dvars_map))
 
             # Traverse the DG grid and collect diagnostics as needed.
-            $(generate_dg_collection(name, config_type, dvtype_dvars_map))
+            $(generate_dg_collection(intrp(), cfg(), dvtype_dvars_map))
+
+            # Perform any reductions necessary.
+            $(generate_dg_reductions(intrp(), cfg(), dvtype_dvars_map))
 
             #=
             # Interpolate and accumulate if needed.
-            $(generate_interpolation(dvars))
+            $(generate_interpolation(intrp(), cfg(), dvtype_dvars_map))
 
             # Traverse the interpolated grid and collect diagnostics if needed.
-            $(generate_ig_collection(dvars))
+            $(generate_i_collection(dvars))
             if interpolate
                 ivars_array = similar(Q.realdata, interpol.Npl, n_grp_vars)
                 interpolate_local!(interpol, vars_array, ivars_array)
@@ -528,32 +440,33 @@ function generate_setup_fun(
     params_type,
     init_fun,
     interpolate,
-    dvars,
     dvtype_dvars_map,
 )
-    setupfun = Symbol("setup_", name)
-    initfun = Symbol(name, "_init")
-    collectfun = Symbol(name, "_collect")
-    finifun = Symbol(name, "_fini")
+    init_name = Symbol(name, "_init")
+    collect_name = Symbol(name, "_collect")
+    fini_name = Symbol(name, "_fini")
+
+    setup_name = Symbol("setup_", name)
+    intrp = getfield(@__MODULE__, interpolate)
 
     no_intrp_err = quote end
     some_intrp_err = quote end
-    if interpolate != :NoInterpolation
+    if intrp isa NoInterpolation
         some_intrp_err = quote
             throw(ArgumentError(
-                "$name specifies interpolation, but no " *
+                "$($name) specifies interpolation, but no " *
                 "`InterpolationTopology` has been provided.",
             ))
         end
     else
         no_intrp_err = quote
-            @warn "$(name) does not specify interpolation, but an " *
+            @warn "$($name) does not specify interpolation, but an " *
                   "`InterpolationTopology` has been provided; ignoring."
             interpol = nothing
         end
     end
     quote
-        function $setupfun(
+        function $setup_name(
             ::$config_type,
             params::$params_type,
             interval::String,
@@ -571,15 +484,15 @@ function generate_setup_fun(
             end
 
             return DiagnosticsGroup(
-                $(name),
-                $(initfun),
-                $(collectfun),
-                $(finifun),
+                $name,
+                $init_name,
+                $collect_name,
+                $fini_name,
                 interval,
                 out_prefix,
                 writer,
                 interpol,
-                $(interpolate != :InterpolateAfterCollection),
+                $(intrp isa NoInterpolation),
                 params,
             )
         end

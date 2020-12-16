@@ -340,7 +340,7 @@ function atmos_gcm_default_collect(dgngrp::DiagnosticsGroup, currtime)
             num_atmos_gcm_default_simple_3d_vars(atmos, FT),
         )
 
-        @traverse_interpolated_grid nlong nlat nlevel begin
+        @traverse_i_grid nlong nlat nlevel begin
             statei = Vars{vars_state(atmos, Prognostic(), FT)}(view(
                 all_state_data,
                 lo,

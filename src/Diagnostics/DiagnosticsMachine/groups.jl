@@ -95,6 +95,11 @@ function GenericCallbacks.fini!(dgngrp::DiagnosticsGroup, solver, Q, param, t)
     return nothing
 end
 
+abstract type InterpolationType end
+struct NoInterpolation <: InterpolationType end
+struct InterpolateAfterCollection <: InterpolationType end
+struct CollectOnInterpolatedGrid <: InterpolationType end
+
 """
     @diagnostics_group
 
@@ -112,10 +117,10 @@ which creates the diagnostics group.
 - `init_fun`: a function that is called when the group is initialized
   (called with `(dgngrp, curr_time); `may be `(_...) -> nothing`). Use
   this to initialize any required state, such as in `dgngrp.params`.
-- `interpolate`: one of ``:CollectOnInterpolatedGrid`,
-  ``:InterpolateAfterCollection` or ``:NoInterpolation`.
+- `interpolate`: one of `CollectOnInterpolatedGrid()`,
+  `InterpolateAfterCollection()` or `NoInterpolation()`.
 - `dvarnames`: one or more diagnostic variables. Together with the
-  `config_type`, identifies the [`DiagnosticVar`](@ref)s to be included
+  `config_type`, identify the [`DiagnosticVar`](@ref)s to be included
   in the group.
 """
 macro diagnostics_group(
@@ -144,18 +149,20 @@ macro diagnostics_group(
         params_type,
         init_fun,
         interpolate,
-        dvars,
         dvtype_dvars_map,
     )
 
     init_fun = esc(prewalk(unblock, generate_init_fun(gen_params...)))
-    #println(init_fun)
+    println(init_fun)
     collect_fun = esc(prewalk(unblock, generate_collect_fun(gen_params...)))
     println(collect_fun)
     fini_fun = esc(prewalk(unblock, generate_fini_fun(gen_params...)))
+    println(fini_fun)
     setup_fun = esc(prewalk(unblock, generate_setup_fun(gen_params...)))
+    println(setup_fun)
+    error("stop")
 
-    return Expr(:block, vars_funs, init_fun, collect_fun, fini_fun, setup_fun)
+    return Expr(:block, init_fun, collect_fun, fini_fun, setup_fun)
 end
 
 include("group_gen.jl")

@@ -29,7 +29,7 @@ end
 
 # Helper macro to iterate over a 3D array. Used for walking the
 # interpolated (GCM) grid.
-macro traverse_interpolated_grid(nlong, nlat, nlevel, expr)
+macro traverse_i_grid(nlong, nlat, nlevel, expr)
     return esc(quote
         for lo in 1:($nlong)
             for la in 1:($nlat)
