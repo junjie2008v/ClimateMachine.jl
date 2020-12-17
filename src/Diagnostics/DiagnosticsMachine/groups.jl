@@ -153,14 +153,9 @@ macro diagnostics_group(
     )
 
     init_fun = esc(prewalk(unblock, generate_init_fun(gen_params...)))
-    println(init_fun)
     collect_fun = esc(prewalk(unblock, generate_collect_fun(gen_params...)))
-    println(collect_fun)
     fini_fun = esc(prewalk(unblock, generate_fini_fun(gen_params...)))
-    println(fini_fun)
     setup_fun = esc(prewalk(unblock, generate_setup_fun(gen_params...)))
-    println(setup_fun)
-    error("stop")
 
     return Expr(:block, init_fun, collect_fun, fini_fun, setup_fun)
 end

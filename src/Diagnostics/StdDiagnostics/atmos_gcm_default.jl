@@ -7,6 +7,10 @@ using ..DiagnosticsMachine
     AtmosGCMConfigType,
     Nothing,
     (_...) -> nothing,
+    # CollectOnInterpolatedGrid | InterpolateAfterCollection | NoInterpolation
+    #NoInterpolation,
+    InterpolateAfterCollection,
+    #CollectOnInterpolatedGrid,
     # simple horizontal averages
     u,
     v,

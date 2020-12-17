@@ -51,6 +51,17 @@ function dv_op(
     x = y
 end
 
+# Reduction for point-wise diagnostics would be a gather, but that will probably
+# blow up memory. TODO.
+function dv_reduce(
+    ::ClimateMachineConfigType,
+    ::Type{PointwiseDiagnostic},
+    array_name,
+)
+    quote
+    end
+end
+
 macro pointwise_diagnostic(impl, config_type, name)
     iex = quote
         $(generate_dv_interface(:PointwiseDiagnostic, config_type, name))

@@ -189,5 +189,3 @@ end
 include("pointwise.jl")
 include("horizontal_average.jl")
 include("scalar.jl")
-
-include("atmos_diagnostic_funs.jl")

@@ -26,6 +26,8 @@ function generate_common_defs()
         nvertelem = topl_info.nvertelem
         nhorzelem = topl_info.nhorzrealelem
         FT = eltype(Q)
+        interpol = dgngrp.interpol
+        params = dgngrp.params
     end
 end
 
@@ -150,6 +152,8 @@ function generate_create_vars_arrays(
     cfg,
     dvtype_dvars_map,
 )
+    quote
+    end
 end
 function generate_create_vars_arrays(
     ::InterpolationType,
@@ -159,7 +163,7 @@ function generate_create_vars_arrays(
     cva_exs = []
     for (dvtype, dvlst) in dvtype_dvars_map
         dvt_short = uppers_in(split(String(Symbol(dvtype)), ".")[end])
-        arr_name = Symbol("vars_", dvt_short, "_dg_array")
+        arr_name = Symbol("vars_", dvt_short, "_array")
         npoints = dv_dg_points_length(cfg, dvtype)
         nvars = length(dvlst)
         nelems = dv_dg_elems_length(cfg, dvtype)
@@ -183,7 +187,7 @@ function generate_collect_calls(
     for (dvtype, dvlst) in dvtype_dvars_map
         dvt = split(String(Symbol(dvtype)), ".")[end]
         dvt_short = uppers_in(dvt)
-        arr_name = Symbol("vars_", dvt_short, "_dg_array")
+        arr_name = Symbol("vars_", dvt_short, "_array")
         pt = dv_dg_points_index(cfg, dvtype)
         elem = dv_dg_elems_index(cfg, dvtype)
         var_impl = Symbol("dv_", dvt)
@@ -202,7 +206,7 @@ function generate_collect_calls(
             cc_ex = dv_op(
                 cfg,
                 dvtype,
-                :($arr_name[$pt, $v, $elem]),#getindex($arr_name, $pt, v, $elem),
+                :($arr_name[$pt, $v, $elem]),
                 :($(var_impl)(
                     $cfg,
                     $dvar,
@@ -222,13 +226,15 @@ end
 
 # Generate the nested loops to traverse the DG grid within which we extract
 # the various states and then generate the individual collection calls.
-function generate_dg_collection(
+function generate_dg_collections(
     ::CollectOnInterpolatedGrid,
     cfg,
     dvtype_dvars_map,
 )
+    quote
+    end
 end
-function generate_dg_collection(
+function generate_dg_collections(
     intrp::InterpolationType,
     cfg,
     dvtype_dvars_map,
@@ -260,91 +266,224 @@ function generate_dg_collection(
 end
 
 # Generate any reductions needed for the data collected thus far.
-function generate_dg_reductions(
-    ::CollectOnInterpolatedGrid,
-    cfg,
-    dvtype_dvars_map,
-)
-end
-function generate_dg_reductions(::InterpolationType, cfg, dvtype_dvars_map)
+function generate_dg_reductions(::NoInterpolation, cfg, dvtype_dvars_map)
     red_exs = []
     for (dvtype, dvlst) in dvtype_dvars_map
         dvt_short = uppers_in(split(String(Symbol(dvtype)), ".")[end])
-        arr_name = Symbol("vars_", dvt_short, "_dg_array")
+        arr_name = Symbol("vars_", dvt_short, "_array")
         red_ex = dv_reduce(cfg, dvtype, arr_name)
         push!(red_exs, red_ex)
     end
 
     return Expr(:block, (red_exs...))
 end
-
-# TODO: here
-function generate_interpolation(
-    ::NoInterpolation,
-    cfg,
-    dvtype_dvars_map,
-)
-end
-function generate_interpolation(
+function generate_dg_reductions(
     ::InterpolationType,
     cfg,
     dvtype_dvars_map,
 )
-    if interpolate != :NoInterpolation
-        quote
-            all_state_data = nothing
-            all_gradflux_data = nothing
-            all_aux_data = nothing
-
-            if interpolate && !isempty(dvars_ig)
-                istate_array = similar(
-                    Q.realdata,
-                    interpol.Npl,
-                    number_states(bl, Prognostic()),
-                )
-                interpolate_local!(interpol, Q.realdata, istate_array)
-                igradflux_array = similar(
-                    Q.realdata,
-                    interpol.Npl,
-                    number_states(bl, GradientFlux()),
-                )
-                interpolate_local!(
-                    interpol,
-                    dg.state_gradient_flux.realdata,
-                    igradflux_array,
-                )
-                iaux_array = similar(
-                    Q.realdata,
-                    interpol.Npl,
-                    number_states(bl, Auxiliary()),
-                )
-                interpolate_local!(
-                    interpol,
-                    dg.state_auxiliary.realdata,
-                    iaux_array,
-                )
-
-                _ρu, _ρv, _ρw = 2, 3, 4
-                project_cubed_sphere!(interpol, istate_array, (_ρu, _ρv, _ρw))
-
-                # FIXME: accumulating to rank 0 is not scalable
-                all_state_data = accumulate_interpolated_data(
-                    mpicomm,
-                    interpol,
-                    istate_array,
-                )
-                all_gradflux_data = accumulate_interpolated_data(
-                    mpicomm,
-                    interpol,
-                    igradflux_array,
-                )
-                all_aux_data =
-                    accumulate_interpolated_data(mpicomm, interpol, iaux_array)
-            end
-        end
-    else
-        quote end
+    quote
     end
+end
+
+# Generate interpolation calls as needed. None for `NoInterpolation`.
+function generate_interpolations(
+    ::NoInterpolation,
+    cfg,
+    dvtype_dvars_map,
+)
+    quote
+    end
+end
+# Interpolate only the diagnostic variables arrays.
+function generate_interpolations(
+    ::InterpolateAfterCollection,
+    cfg,
+    dvtype_dvars_map,
+)
+    ic_exs = []
+    for (dvtype, dvlst) in dvtype_dvars_map
+        nvars = length(dvlst)
+        dvt = split(String(Symbol(dvtype)), ".")[end]
+        dvt_short = uppers_in(dvt)
+        arr_name = Symbol("vars_", dvt_short, "_array")
+        iarr_name = Symbol("i", arr_name)
+        acc_arr_name = Symbol("acc_", arr_name)
+        ic_ex = quote
+            $iarr_name = similar($arr_name, interpol.Npl, $nvars)
+            interpolate_local!(interpol, $arr_name, $iarr_name)
+            # TODO: projection
+            $acc_arr_name = accumulate_interpolated_data(mpicomm, interpol, $iarr_name)
+        end
+        push!(ic_exs, ic_ex)
+    end
+
+    return Expr(:block, (ic_exs...))
+end
+# Interpolate all the arrays needed for `States`.
+function generate_interpolations(
+    ::CollectOnInterpolatedGrid,
+    cfg,
+    dvtype_dvars_map,
+)
+    quote
+        istate_array = similar(
+            Q.realdata,
+            interpol.Npl,
+            number_states(bl, Prognostic()),
+        )
+        interpolate_local!(interpol, Q.realdata, istate_array)
+        igradflux_array = similar(
+            Q.realdata,
+            interpol.Npl,
+            number_states(bl, GradientFlux()),
+        )
+        interpolate_local!(
+            interpol,
+            dg.state_gradient_flux.realdata,
+            igradflux_array,
+        )
+        iaux_array = similar(
+            Q.realdata,
+            interpol.Npl,
+            number_states(bl, Auxiliary()),
+        )
+        interpolate_local!(
+            interpol,
+            dg.state_auxiliary.realdata,
+            iaux_array,
+        )
+
+        i_ρu = varsindex(vars_state(bl, Prognostic(), FT), :ρu)
+        project_cubed_sphere!(interpol, istate_array, tuple(collect(i_ρu)...))
+
+        # FIXME: accumulating to rank 0 is not scalable
+        all_state_data = accumulate_interpolated_data(
+            mpicomm,
+            interpol,
+            istate_array,
+        )
+        all_gradflux_data = accumulate_interpolated_data(
+            mpicomm,
+            interpol,
+            igradflux_array,
+        )
+        all_aux_data =
+            accumulate_interpolated_data(mpicomm, interpol, iaux_array)
+    end
+end
+
+# Generate code to create the necessary arrays to collect the diagnostics
+# variables on the interpolated grid.
+function generate_create_i_vars_arrays(
+    ::CollectOnInterpolatedGrid,
+    cfg,
+    dvtype_dvars_map,
+)
+    cva_exs = []
+    for (dvtype, dvlst) in dvtype_dvars_map
+        dvt_short = uppers_in(split(String(Symbol(dvtype)), ".")[end])
+        acc_arr_name = Symbol("acc_vars_", dvt_short, "_array")
+        nvars = length(dvlst)
+        cva_ex = quote
+            $acc_arr_name = Array{FT}(undef, nx, ny, nz, $nvars)
+            fill!($acc_arr_name, 0)
+        end
+        push!(cva_exs, cva_ex)
+    end
+
+    return Expr(:block, (cva_exs...))
+end
+function generate_create_i_vars_arrays(
+    ::InterpolationType,
+    cfg,
+    dvtype_dvars_map,
+)
+    quote
+    end
+end
+
+# Generate the nested loops to traverse the interpolated grid within
+# which we extract the various (interpolated) states and then generate
+# the individual collection calls.
+function generate_i_collections(
+    intrp::CollectOnInterpolatedGrid,
+    cfg,
+    dvtype_dvars_map,
+)
+    quote
+        (x1, x2, x3) = map(k -> dims[k][1], collect(keys(dims)))
+        for x in 1:x1, y in 1:x2, z in 1:x3
+            istate = Vars{vars_state(bl, Prognostic(), FT)}(view(
+                all_state_data,
+                x,
+                y,
+                z,
+                :,
+            ))
+            igradflux = Vars{vars_state(bl, GradientFlux(), FT)}(view(
+                all_gradflux_data,
+                x,
+                y,
+                z,
+                :,
+            ))
+            iaux = Vars{vars_state(bl, Auxiliary(), FT)}(view(
+                all_aux_data,
+                x,
+                y,
+                z,
+                :,
+            ))
+            states = States(istate, igradflux, iaux)
+            $(generate_collect_calls(intrp, cfg, dvtype_dvars_map))
+        end
+    end
+end
+function generate_i_collections(
+    ::InterpolationType,
+    cfg,
+    dvtype_dvars_map,
+)
+    quote
+    end
+end
+
+# Generate assignments into `varvals` for writing.
+function generate_varvals(::NoInterpolation, cfg, dvtype_dvars_map)
+    vv_exs = []
+    for (dvtype, dvlst) in dvtype_dvars_map
+        dvt = split(String(Symbol(dvtype)), ".")[end]
+        dvt_short = uppers_in(dvt)
+        arr_name = Symbol("vars_", dvt_short, "_array")
+        for (v, dvar) in enumerate(dvlst)
+            vv_ex = quote
+                varvals[$(dv_name(cfg, dvar))] = reshape(
+                    view($(arr_name), :, $v, :),
+                    :,
+                )
+            end
+            push!(vv_exs, vv_ex)
+        end
+    end
+
+    return Expr(:block, (vv_exs...))
+end
+function generate_varvals(::InterpolationType, cfg, dvtype_dvars_map)
+    vv_exs = []
+    for (dvtype, dvlst) in dvtype_dvars_map
+        dvt = split(String(Symbol(dvtype)), ".")[end]
+        dvt_short = uppers_in(dvt)
+        acc_arr_name = Symbol("acc_vars_", dvt_short, "_array")
+        for (v, dvar) in enumerate(dvlst)
+            vv_ex = quote
+                varvals[$(dv_name(cfg, dvar))] = $(acc_arr_name)[:, :, :, $v]
+            end
+            push!(vv_exs, vv_ex)
+        end
+    end
+
+    return Expr(:block, (vv_exs...))
 end
 
 # Generate `Diagnostics.$(name)_collect(...)` which when called,
@@ -365,77 +504,32 @@ function generate_collect_fun(
         function $collect_name(dgngrp, curr_time)
             $(generate_common_defs())
             $(generate_array_copies())
-            interpol = dgngrp.interpol
             $(generate_create_vars_arrays(intrp(), cfg(), dvtype_dvars_map))
 
             # Traverse the DG grid and collect diagnostics as needed.
-            $(generate_dg_collection(intrp(), cfg(), dvtype_dvars_map))
+            $(generate_dg_collections(intrp(), cfg(), dvtype_dvars_map))
 
             # Perform any reductions necessary.
             $(generate_dg_reductions(intrp(), cfg(), dvtype_dvars_map))
 
-            # Interpolate and accumulate if needed.
-            $(generate_interpolation(intrp(), cfg(), dvtype_dvars_map))
-
-            #=
-            # Traverse the interpolated grid and collect diagnostics if needed.
-            $(generate_i_collection(dvars))
-            if interpolate
-                ivars_array = similar(Q.realdata, interpol.Npl, n_grp_vars)
-                interpolate_local!(interpol, vars_array, ivars_array)
-                all_ivars_data = accumulate_interpolated_data(
-                    mpicomm,
-                    interpol,
-                    ivars_array,
-                )
-            end
-
             # TODO: density averaging.
+
+            # Interpolate and accumulate if needed.
+            $(generate_interpolations(intrp(), cfg(), dvtype_dvars_map))
 
             if mpirank == 0
                 dims = dimensions(interpol)
-                (nx, ny, nz) = map(k -> dims[k][1], collect(keys(dims)))
-                for x in 1:nx, y in 1:ny, z in 1:nz
-                    istate = Vars{vars_state(bl, Prognostic(), FT)}(view(
-                        all_state_data,
-                        x,
-                        y,
-                        z,
-                        :,
-                    ))
-                    igradflux = Vars{vars_state(bl, GradientFlux(), FT)}(view(
-                        all_gradflux_data,
-                        x,
-                        y,
-                        z,
-                        :,
-                    ))
-                    iaux = Vars{vars_state(bl, Auxiliary(), FT)}(view(
-                        all_aux_data,
-                        x,
-                        y,
-                        z,
-                        :,
-                    ))
-                    states = States(istate, igradflux, iaux)
-                    vars = Vars{grp_vars}(view(ivars_array, x, y, z, :))
-                    $(generate_collect_calls(name, config_type, dvars_ig))
-                end
 
+                $(generate_create_i_vars_arrays(intrp(), cfg(), dvtype_dvars_map))
+
+                # Traverse the interpolated grid and collect diagnostics if needed.
+                $(generate_i_collections(intrp(), cfg(), dvtype_dvars_map))
+
+                # Assemble the diagnostic variables and write them.
                 varvals = OrderedDict()
-                varnames = map(
-                    s -> startswith(s, "moisture.") ? s[10:end] : s, # XXX: FIXME
-                    flattenednames(grp_vars),
-                )
-                for (vari, varname) in enumerate(varnames)
-                    varvals[varname] = vars_array[
-                        ntuple(_ -> Colon(), ndims(vars_array))...,
-                        vari,
-                    ] # XXX: FIXME
-                end
+                $(generate_varvals(intrp(), cfg(), dvtype_dvars_map))
                 append_data(dgngrp.writer, varvals, curr_time)
             end
-            =#
 
             MPI.Barrier(mpicomm)
             return nothing
@@ -470,18 +564,18 @@ function generate_setup_fun(
 
     no_intrp_err = quote end
     some_intrp_err = quote end
-    if intrp isa NoInterpolation
+    if intrp() isa NoInterpolation
+        no_intrp_err = quote
+            @warn "$($name) does not specify interpolation, but an " *
+                  "`InterpolationTopology` has been provided; ignoring."
+            interpol = nothing
+        end
+    else
         some_intrp_err = quote
             throw(ArgumentError(
                 "$($name) specifies interpolation, but no " *
                 "`InterpolationTopology` has been provided.",
             ))
-        end
-    else
-        no_intrp_err = quote
-            @warn "$($name) does not specify interpolation, but an " *
-                  "`InterpolationTopology` has been provided; ignoring."
-            interpol = nothing
         end
     end
     quote
@@ -511,7 +605,7 @@ function generate_setup_fun(
                 out_prefix,
                 writer,
                 interpol,
-                $(intrp isa NoInterpolation),
+                $(intrp() isa NoInterpolation),
                 params,
             )
         end
