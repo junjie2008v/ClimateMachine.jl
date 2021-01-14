@@ -1,16 +1,61 @@
-
+# In ClimateMachine, we have TONS of timesteppers. Here, we
+# shall explore the use of explicit Runge-Kutta methods. For
+# our model problem, we shall reuse the rising thermal bubble
+# example, included below:
+# [expand and make introduction nicer]
 include("tutorial_config.jl")
+FT = Float64
 
+# After discretizing in space, the semi-discretization of
+# the governing equations have the form:
+#
+# ODE: dQ/dt = Minv*S - Minv*DF + ... == F(Q) [eq:foo]
+#
+# [Intro something along these lines]
 
-function main()
-    ## These are essentially arguments passed to the
-    FT = Float64
-    ode_solver = ClimateMachine.ExplicitSolverType(
-        solver_method = LSRK144NiegemannDiehlBusch,
-    )
-    CFL = FT(1.7)
-    timeend = FT(100)
-    result = run_simulation(ode_solver, CFL, timeend)
-end
+# A single step of an ``s``-stage Runge-Kutta (RK) method for
+# solving the resulting ODE problem in [eq:foo] and can be
+# expressed as the following:
 
-main()
+# ``
+# 	\boldsymbol{y}^{n+1} = \vec{y}^n + \Delta t \sum_{i=1}^{s} b_i \vec{\mathcal{T}}(\vec{Y}^i),
+# ``
+
+# where
+# ``\vec{\mathcal{T}}(\vec{Y}^i)`` is the evaluation of the right-hand side
+# tendency at the stage value $\vec{Y}^i$, defined at each stage
+# of the RK method:
+
+# ``
+# 	\vec{Y}^i := \vec{y}^{n} + \Delta t \sum_{j=1}^{s} a_{i,j} \vec{\mathcal{T}}(\vec{Y}^j).
+# ``
+
+# ## [Low-storage Runge-Kutta methods](@id lsrk)
+
+# Here, we use a 4-th order 5-stage explict LSRK method:
+ode_solver = ClimateMachine.ExplicitSolverType(
+    solver_method = LSRK54CarpenterKennedy,
+)
+CFL = FT(0.6)
+timeend = FT(100)
+run_simulation(ode_solver, CFL, timeend)
+
+# Let's try to take a larger time-step:
+CFL = FT(1.7)
+run_simulation(ode_solver, CFL, timeend)
+
+# Oh-no it breaks!
+# Now we try using a 14-stage method. Due to its larger
+# stability region, we can take a larger time-step size
+# compared to the previous 5-stage method:
+ode_solver = ClimateMachine.ExplicitSolverType(
+    solver_method = LSRK144NiegemannDiehlBusch,
+)
+run_simulation(ode_solver, CFL, timeend)
+
+# ## [Strong-stability-preserving Runge-Kutta methods](@id ssprk)
+ode_solver = ClimateMachine.ExplicitSolverType(
+    solver_method = SSPRK33ShuOsher,
+)
+CFL = FT(1.7)
+run_simulation(ode_solver, CFL, timeend)
