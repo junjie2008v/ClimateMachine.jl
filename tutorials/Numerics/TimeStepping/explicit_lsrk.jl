@@ -3,7 +3,7 @@
 # our model problem, we shall reuse the rising thermal bubble
 # example, included below:
 # [expand and make introduction nicer]
-include("tutorial_config.jl")
+include("tutorials/Numerics/TimeStepping/tutorial_config.jl")
 FT = Float64
 
 # After discretizing in space, the semi-discretization of
