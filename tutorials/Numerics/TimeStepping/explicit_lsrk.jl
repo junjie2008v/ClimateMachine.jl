@@ -1,20 +1,22 @@
-# In ClimateMachine, we have TONS of timesteppers. Here, we
-# shall explore the use of explicit Runge-Kutta methods. For
-# our model problem, we shall reuse the rising thermal bubble
-# example, included below:
-# [expand and make introduction nicer]
+# ClimateMachine supports multiple timesteppers, of different nature
+# (explicit, semi-implicit, single-stage, multi-stage, single-step, multi-step,
+# single-rate, multi-rate, etc). In this tutorial, we shall explore the use of
+# explicit Runge-Kutta methods. For our model problem, we shall reuse the
+# [rising thermal bubble tutorial](@ref Rising-termal-bubble)
+# (see for details on the model and parameters)
+
 include("tutorials/Numerics/TimeStepping/tutorial_config.jl")
 FT = Float64
 
 # After discretizing in space, the semi-discretization of
 # the governing equations have the form:
 #
-# ODE: dQ/dt = Minv*S - Minv*DF + ... == F(Q) [eq:foo]
+#  \frac{∂ Q}{∂ t} + ∇ ⋅ (F_1(Q)) == S(Q) [eq:governing]
 #
 # [Intro something along these lines]
 
 # A single step of an ``s``-stage Runge-Kutta (RK) method for
-# solving the resulting ODE problem in [eq:foo] and can be
+# solving the resulting ODE problem in [eq:governing] and can be
 # expressed as the following:
 
 # ``
@@ -36,11 +38,11 @@ FT = Float64
 ode_solver = ClimateMachine.ExplicitSolverType(
     solver_method = LSRK54CarpenterKennedy,
 )
-CFL = FT(0.6)
+# CFL = FT(0.6)
 timeend = FT(100)
-run_simulation(ode_solver, CFL, timeend)
+# run_simulation(ode_solver, CFL, timeend)
 
-# Let's try to take a larger time-step:
+# Here, we use a 4-th order 14-stage explict LSRK method:
 CFL = FT(1.7)
 run_simulation(ode_solver, CFL, timeend)
 
