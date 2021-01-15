@@ -177,7 +177,7 @@ function main()
         init_on_cpu = true,
     )
 
-    dgn_ssecs = (timeend / 3) + 10
+    dgn_ssecs = (timeend / 2) + 10
     dgn_interval = "$(dgn_ssecs)ssecs"
     dgn_config = config_diagnostics(
         driver_config,
