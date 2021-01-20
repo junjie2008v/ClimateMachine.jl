@@ -1,13 +1,49 @@
 # # Single-rate explicit timestepping
 
-# ClimateMachine supports multiple timesteppers, of different nature (explicit, semi-implicit, single-stage, multi-stage, single-step, multi-step, single-rate, multi-rate, etc). In this tutorial, we shall explore the use of explicit Runge-Kutta methods. For our model problem, we shall reuse the [rising thermal bubble tutorial](@ref Rising-termal-bubble)
-# (see for details on the model and parameters)
+# Time integration methods for the numerical solution of Ordinary Differential
+# Equations (ODEs), also called timesteppers, can be of different nature and
+# flavor (e.g., explicit, semi-implicit, single-stage, multi-stage, single-step,
+# multi-step, single-rate, multi-rate, etc). ClimateMachine supports several
+# of them.
 
+# In this tutorial, we shall explore the use of explicit Runge-Kutta
+# methods for the solution of nonautonomous (or non time-invariant) equations.
+# For our model problem, we shall reuse the rising thermal bubble
+# tutorial. See its tutorial page (@ref ClimateMachine.Tutorials.Atmos.Rising-Thermal-Bubble)
+# for details on the model and parameters.
 
 include("tutorials/Numerics/TimeStepping/tutorial_risingbubble_config.jl")
 FT = Float64
 
-# After discretizing in space, the semi-discretization of the governing equations have the form:
+# A commonly used notation for Initial Value Problems (IVPs) is:
+
+# $$
+# \begin{aligned}
+#     \frac{\mathrm{d} \boldsymbol{q}}{ \mathrm{d} t} &= \mathcal{T}(t, \boldsymbol{q}),\\
+#     \boldsymbol{q}(t_0) &= \boldsymbol{q_0},
+# \end{aligned}
+# $$
+
+# where $\boldsymbol{q}$ is an unknown function (vector in most of our cases)
+# of time $t$, which we would like to approximate, and at the initial time $t_0$
+# the corresponding initial value $\boldsymbol{q}_0$ is given.
+
+# The given general formulation, is suitable for single-step explicit schemes. When the ODE is
+# discretized by an implicit method, the equation can be represented in the
+# following canonical form:
+
+# $$
+# \begin{aligned}
+#     \mathcal{F}(t, \boldsymbol{q}, {\dot \boldsymbol{q}}) &= \mathcal{T}(t, \boldsymbol{q}),\\
+# \end{aligned}
+# $$
+
+# In both explicit/implicit cases, we refer to the term $\mathcal{T}$
+# as the right-hand-side (RHS) or explicit term, and to the spatial terms of $\mathcal{F}$
+# as the left-hand-side or implicit term.
+
+# After discretizing the spatial terms in the equation, the semi-discretization
+# of the governing equations have the form:
 
 # $$
 # \begin{aligned}
@@ -17,7 +53,7 @@ FT = Float64
 # \end{aligned}
 # $$
 #
-# # ## Low-storage Runge-Kutta methods
+# ## Low-storage Runge-Kutta methods
 #
 # [Intro something along these lines]
 #
@@ -31,7 +67,9 @@ FT = Float64
 # \end{aligned}
 # $$
 #
-# where $\boldsymbol{\mathcal{T}}(\boldsymbol{Q}^i)$ is the evaluation of the right-hand side tendency at the stage value $\boldsymbol{Q}^i$, defined at each stage of the RK method:
+# where $\boldsymbol{\mathcal{T}}(\boldsymbol{Q}^i)$ is the evaluation of the
+# right-hand side tendency at the stage value $\boldsymbol{Q}^i$, defined at
+# each stage of the RK method:
 #
 # $$
 # \begin{aligned}
@@ -41,7 +79,8 @@ FT = Float64
 # \end{aligned}
 # $$
 #
-# The first stage is initialized using the field at the previous time-step: $\boldsymbol{Q}^{1} = \boldsymbol{q}^n$.
+# The first stage is initialized using the field at the previous time-step:
+# $\boldsymbol{Q}^{1} = \boldsymbol{q}^n$.
 #
 # In the above expressions, we define $\boldsymbol{A} = \lbrace a_{i,j} \rbrace \in \mathbb{R}^{s\times s}$, $\boldsymbol{b} = \lbrace b_i \rbrace \in \mathbb{R}^s$, and $\boldsymbol{c} = \lbrace c_i \rbrace \in \mathbb{R}^s$ as the characteristic coefficients of a given RK method. This means we can associate any RK method with its so-called *Butcher tableau*:
 #
@@ -63,13 +102,16 @@ FT = Float64
 # \end{aligned}
 # $$
 #
-# The vector $\boldsymbol{c}$ is often called the *consistency vector*, and is typically subject to the row-sum condition:
+# The vector $\boldsymbol{c}$ is often called the *consistency vector*,
+# and is typically subject to the row-sum condition:
 #
 # $$
 # c_i = \sum_{j=1}^{s} a_{i,j}, \quad \forall i = 1, \cdots, s.
 # $$
 #
-# This simplifies the order conditions for higher-order RK methods. For more information on general RK methods, we refer the interested reader to \cite[Ch. 5.2]{atkinson2011numerical}.
+# This simplifies the order conditions for higher-order RK methods.
+# For more information on general RK methods, we refer the interested reader
+# to \cite[Ch. 5.2]{atkinson2011numerical}.
 #
 # ## [Low-storage Runge-Kutta methods](@id lsrk)
 #
@@ -99,7 +141,8 @@ run_simulation(ode_solver, CFL, timeend)
 
 # # Strong Stability Preserving Runge--Kutta methods
 
-# Just as with the LSRK methods, the SSPRK methods are self-starting, with $\boldsymbol{Q}^{1} = \boldsymbol{q}^n$, and stage-values are of the form
+# Just as with the LSRK methods, the SSPRK methods are self-starting,
+# with $\boldsymbol{Q}^{1} = \boldsymbol{q}^n$, and stage-values are of the form
 
 # $$
 # \begin{aligned}
