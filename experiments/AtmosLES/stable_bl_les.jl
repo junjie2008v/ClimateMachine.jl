@@ -1,4 +1,9 @@
 using Random
+#using CLIMAParameters
+#using CLIMAParameters.Atmos.SubgridScale: C_smag
+#struct EarthParameterSet <: AbstractEarthParameterSet end
+#const param_set = EarthParameterSet()
+#import CLIMAParameters
 include("stable_bl_model.jl")
 
 function add_perturbations!(state, localgeo)
@@ -7,6 +12,7 @@ function add_perturbations!(state, localgeo)
     if z <= FT(50) # Add random perturbations to bottom 50m of model
         state.ρe += (rand() - 0.5) * state.ρe / 100
     end
+end
 
 function set_clima_parameters(filename)
     eval(:(include($filename)))
@@ -35,8 +41,8 @@ function main()
     surface_flux = cl_args["surface_flux"]
 
     FT = Float64
-    config_type = AtmosLESConfigType
 
+    config_type = AtmosLESConfigType
     # DG polynomial order
     N = 4
     # Domain resolution and size
@@ -59,14 +65,14 @@ function main()
     # Choose default IMEX solver
     ode_solver_type = ClimateMachine.ExplicitSolverType()
 
-    C_smag = FT(0.23)
+    C_smag_ = C_smag(param_set) #FT(0.23)
 
     model = stable_bl_model(
         FT,
         config_type,
         zmax,
         surface_flux;
-        turbulence = SmagorinskyLilly{FT}(C_smag),
+        turbulence = SmagorinskyLilly{FT}(C_smag_),
     )
 
     ics = model.problem.init_state_prognostic
