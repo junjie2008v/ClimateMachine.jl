@@ -1,11 +1,5 @@
 # # Single-rate explicit timestepping
 
-# Time integration methods for the numerical solution of Ordinary Differential
-# Equations (ODEs), also called timesteppers, can be of different nature and
-# flavor (e.g., explicit, semi-implicit, single-stage, multi-stage, single-step,
-# multi-step, single-rate, multi-rate, etc). ClimateMachine supports several
-# of them.
-
 # In this tutorial, we shall explore the use of explicit Runge-Kutta
 # methods for the solution of nonautonomous (or non time-invariant) equations.
 # For our model problem, we shall reuse the rising thermal bubble
@@ -14,33 +8,6 @@
 
 include("tutorials/Numerics/TimeStepping/tutorial_risingbubble_config.jl")
 FT = Float64
-
-# A commonly used notation for Initial Value Problems (IVPs) is:
-
-# $$
-# \begin{aligned}
-#     \frac{\mathrm{d} \boldsymbol{q}}{ \mathrm{d} t} &= \mathcal{T}(t, \boldsymbol{q}),\\
-#     \boldsymbol{q}(t_0) &= \boldsymbol{q_0},
-# \end{aligned}
-# $$
-
-# where $\boldsymbol{q}$ is an unknown function (vector in most of our cases)
-# of time $t$, which we would like to approximate, and at the initial time $t_0$
-# the corresponding initial value $\boldsymbol{q}_0$ is given.
-
-# The given general formulation, is suitable for single-step explicit schemes. When the ODE is
-# discretized by an implicit method, the equation can be represented in the
-# following canonical form:
-
-# $$
-# \begin{aligned}
-#     \mathcal{F}(t, \boldsymbol{q}, {\dot \boldsymbol{q}}) &= \mathcal{T}(t, \boldsymbol{q}),\\
-# \end{aligned}
-# $$
-
-# In both explicit/implicit cases, we refer to the term $\mathcal{T}$
-# as the right-hand-side (RHS) or explicit term, and to the spatial terms of $\mathcal{F}$
-# as the left-hand-side or implicit term.
 
 # After discretizing the spatial terms in the equation, the semi-discretization
 # of the governing equations have the form:
