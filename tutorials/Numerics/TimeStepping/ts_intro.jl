@@ -25,7 +25,7 @@
 
 # $$
 # \begin{aligned}
-#     \mathcal{F}(t, \boldsymbol{q}, {\dot \boldsymbol{q}}) &= \mathcal{G}(t, \boldsymbol{q}),\\
+#      {\dot \boldsymbol{q}} + \mathcal{F}(t, \boldsymbol{q}) &= \mathcal{G}(t, \boldsymbol{q}),\\
 # \end{aligned}
 # $$
 
@@ -35,5 +35,5 @@
 # $\mathcal{F}$ as the left-hand-side or implicit term.
 
 # For the particular IVP shown above, we have that
-# $\mathcal{F}(t, \boldsymbol{q}, {\dot \boldsymbol{q}}) \equiv \dot \boldsymbol{q}$
+# $\mathcal{F}(t, \boldsymbol{q}) \equiv 0$
 # and $\mathcal{G}(t, \boldsymbol{q}) \equiv \mathcal{T}(t, \boldsymbol{q})$.
