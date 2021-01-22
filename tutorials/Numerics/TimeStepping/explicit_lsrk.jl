@@ -125,9 +125,8 @@ timeend = FT(100)
 # we can determine our $\Delta t$ by specifying our desired Courant number $C$.
 # In our case, a heuristically determined value of 0.4 is used.
 
-ode_solver = ClimateMachine.ExplicitSolverType(
-    solver_method = LSRK54CarpenterKennedy,
-)
+ode_solver =
+    ClimateMachine.ExplicitSolverType(solver_method = LSRK54CarpenterKennedy)
 C = FT(0.4)
 run_simulation(ode_solver, C, timeend)
 
@@ -177,8 +176,6 @@ run_simulation(ode_solver, C, timeend)
 
 # ## [Strong-stability-preserving Runge-Kutta methods](@id ssprk)
 
-ode_solver = ClimateMachine.ExplicitSolverType(
-    solver_method = SSPRK33ShuOsher,
-)
+ode_solver = ClimateMachine.ExplicitSolverType(solver_method = SSPRK33ShuOsher)
 C = FT(0.2)
 run_simulation(ode_solver, C, timeend)

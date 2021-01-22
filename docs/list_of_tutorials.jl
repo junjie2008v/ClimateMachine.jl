@@ -22,35 +22,35 @@ if generate_tutorials
         # "Home" => "TutorialList.jl",
         # "Balance Law" => "how_to_make_a_balance_law.jl",
         "Atmos" => [
-        #     "Dry Idealized GCM (Held-Suarez)" => "Atmos/heldsuarez.jl",
-        #     "Single Element Stack Experiment (Burgers Equation)" =>
-        #         "Atmos/burgers_single_stack.jl",
-        #     "LES Experiment (Density Current)" => "Atmos/densitycurrent.jl",
+            #     "Dry Idealized GCM (Held-Suarez)" => "Atmos/heldsuarez.jl",
+            #     "Single Element Stack Experiment (Burgers Equation)" =>
+            #         "Atmos/burgers_single_stack.jl",
+            #     "LES Experiment (Density Current)" => "Atmos/densitycurrent.jl",
             "LES Experiment (Rising Thermal Bubble)" =>
                 "Atmos/risingbubble.jl",
-        #     "Linear Hydrostatic Mountain (Topography)" =>
-        #         "Atmos/agnesi_hs_lin.jl",
-        #     "Linear Non-Hydrostatic Mountain (Topography)" =>
-        #         "Atmos/agnesi_nh_lin.jl",
-        # ],
-        # "Land" => [
-        #     "Heat" => ["Heat Equation" => "Land/Heat/heat_equation.jl"],
-        #     "Soil" => [
-        #         "Hydraulic Functions" =>
-        #             "Land/Soil/Water/hydraulic_functions.jl",
-        #         "Soil Heat Equation" =>
-        #             "Land/Soil/Heat/bonan_heat_tutorial.jl",
-        #         "Richards Equation" =>
-        #             "Land/Soil/Water/equilibrium_test.jl",
-        #         "Coupled Water and Heat" =>
-        #             "Land/Soil/Coupled/equilibrium_test.jl",
-        #     ],
-        # ],
-        # "Ocean" => [
-        #     "One-dimensional geostrophic adjustment" =>
-        #         "Ocean/geostrophic_adjustment.jl",
-        #     "Propagating mode-1 internal wave" => "Ocean/internal_wave.jl",
-        #     "Shear instability" => "Ocean/shear_instability.jl",
+            #     "Linear Hydrostatic Mountain (Topography)" =>
+            #         "Atmos/agnesi_hs_lin.jl",
+            #     "Linear Non-Hydrostatic Mountain (Topography)" =>
+            #         "Atmos/agnesi_nh_lin.jl",
+            # ],
+            # "Land" => [
+            #     "Heat" => ["Heat Equation" => "Land/Heat/heat_equation.jl"],
+            #     "Soil" => [
+            #         "Hydraulic Functions" =>
+            #             "Land/Soil/Water/hydraulic_functions.jl",
+            #         "Soil Heat Equation" =>
+            #             "Land/Soil/Heat/bonan_heat_tutorial.jl",
+            #         "Richards Equation" =>
+            #             "Land/Soil/Water/equilibrium_test.jl",
+            #         "Coupled Water and Heat" =>
+            #             "Land/Soil/Coupled/equilibrium_test.jl",
+            #     ],
+            # ],
+            # "Ocean" => [
+            #     "One-dimensional geostrophic adjustment" =>
+            #         "Ocean/geostrophic_adjustment.jl",
+            #     "Propagating mode-1 internal wave" => "Ocean/internal_wave.jl",
+            #     "Shear instability" => "Ocean/shear_instability.jl",
         ],
         "Numerics" => [
             # "System Solvers" => [
@@ -60,9 +60,11 @@ if generate_tutorials
             # ],
             # "DG Methods" =>
             #     ["Filters" => "Numerics/DGMethods/showcase_filters.jl"],
-            "Time-Stepping" =>
-                ["Introduction" => "Numerics/TimeStepping/ts_intro.jl",
-                 "Explicit Runge-Kutta methods" => "Numerics/TimeStepping/explicit_lsrk.jl"],
+            "Time-Stepping" => [
+                "Introduction" => "Numerics/TimeStepping/ts_intro.jl",
+                "Explicit Runge-Kutta methods" =>
+                    "Numerics/TimeStepping/explicit_lsrk.jl",
+            ],
         ],
         # "Diagnostics" => [
         #     "Debug" => [
