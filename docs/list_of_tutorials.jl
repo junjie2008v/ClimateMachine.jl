@@ -21,13 +21,13 @@ if generate_tutorials
     tutorials = [
         # "Home" => "TutorialList.jl",
         # "Balance Law" => "how_to_make_a_balance_law.jl",
-        # "Atmos" => [
+        "Atmos" => [
         #     "Dry Idealized GCM (Held-Suarez)" => "Atmos/heldsuarez.jl",
         #     "Single Element Stack Experiment (Burgers Equation)" =>
         #         "Atmos/burgers_single_stack.jl",
         #     "LES Experiment (Density Current)" => "Atmos/densitycurrent.jl",
-        #     "LES Experiment (Rising Thermal Bubble)" =>
-        #         "Atmos/risingbubble.jl",
+            "LES Experiment (Rising Thermal Bubble)" =>
+                "Atmos/risingbubble.jl",
         #     "Linear Hydrostatic Mountain (Topography)" =>
         #         "Atmos/agnesi_hs_lin.jl",
         #     "Linear Non-Hydrostatic Mountain (Topography)" =>
@@ -51,7 +51,7 @@ if generate_tutorials
         #         "Ocean/geostrophic_adjustment.jl",
         #     "Propagating mode-1 internal wave" => "Ocean/internal_wave.jl",
         #     "Shear instability" => "Ocean/shear_instability.jl",
-        # ],
+        ],
         "Numerics" => [
             # "System Solvers" => [
             #     "Conjugate Gradient" => "Numerics/SystemSolvers/cg.jl",

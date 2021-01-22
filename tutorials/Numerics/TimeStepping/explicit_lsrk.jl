@@ -1,13 +1,15 @@
-# # Single-rate explicit timestepping
+# # [Single-rate Explicit Timestepping](@id Single-rate-Explicit-Timestepping)
 
 # In this tutorial, we shall explore the use of explicit Runge-Kutta
 # methods for the solution of nonautonomous (or non time-invariant) equations.
 # For our model problem, we shall reuse the rising thermal bubble
-# tutorial. See its tutorial page (@ref ClimateMachine.Tutorials.Atmos.Rising-Thermal-Bubble)
-# for details on the model and parameters.
+# tutorial. See its [tutorial page](@ref ClimateMachine.Tutorials.Atmos.Rising-Thermal-Bubble)
+# for details on the model and parameters. For the purposes of this tutorial,
+# we will only run the experiment for a total of 100 simulation seconds.
 
 include("tutorials/Numerics/TimeStepping/tutorial_risingbubble_config.jl")
 FT = Float64
+timeend = FT(100)
 
 # After discretizing the spatial terms in the equation, the semi-discretization
 # of the governing equations have the form:
@@ -19,10 +21,32 @@ FT = Float64
 #     \right) \equiv \mathcal{T}(\boldsymbol{q}).
 # \end{aligned}
 # $$
+
+# Referencing the canonical form introduced in [`Time integration`](@ref
+# ClimateMachine.Tutorials.Atmos.Time-integration) we have that in any explicit
+# formulation $\mathcal{F}(t, \boldsymbol{q}) \equiv 0$ and, in this particular
+# forumlation $\mathcal{T}(t, \boldsymbol{q}) \equiv \mathcal{G}(t, \boldsymbol{q})$.
+
+# The time-step restriction for an explicit method must satisfy the stable
+# [Courant number](https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition)
+# for the specific time-integrator and must be selected from the following
+# constraints
+#
+# $$
+# \begin{aligned}
+#     \Delta t_{\mathrm{explicit}} = min \left( \frac{C \Delta x_i}{u_i + a}, \frac{C \Delta x_i^2}{\nu} \right)
+# \end{aligned}
+# $$
+#
+# where $C$ is the stable Courant number, $u_i$ denotes the velocity components,
+# $a$ the speed of sound, $\Delta x_i$ the grid spacing (non-uniform in case of
+# spectral element methods) along the direction $(x_1,x_2,x_3)$, and $\nu$ the
+# kinematic viscosity. The first term on the right is the time-step condition
+# due to the non-dissipative components while the second term to the dissipation.
+# For explicit time-integrators, we have to find the minimum time-step that
+# satisfies this condition along all three spatial directions.
 #
 # ## Low-storage Runge-Kutta methods
-#
-# [Intro something along these lines]
 #
 # A single step of an ``s``-stage Runge-Kutta (RK) method for
 # solving the resulting ODE problem in [eq:foo] and can be
@@ -81,30 +105,58 @@ FT = Float64
 # to \cite[Ch. 5.2]{atkinson2011numerical}.
 #
 # ## [Low-storage Runge-Kutta methods](@id lsrk)
+# For our first example, we shall run a simple rising bubble
+# experiment for 100 seconds. [...]
+# ClimateMachine.jl contains the following low-storage methods:
+#   - Forward Euler (`LSRKEulerMethod`)
+#   - A 5-stage 4th-order Runge-Kutta method of Carpenter and Kennedy (`LSRK54CarpenterKennedy`)
+#   - A 14-stage 4th-order Runge-Kutta method developed by Niegemann, Diehl, and Busch (`LSRK144NiegemannDiehlBusch`).
 #
-# Here, we use a 4-th order 5-stage explict LSRK method:
+# To start, let's try using the 5-stage method: `LSRK54CarpenterKennedy`.
+
+# As is the case for all explicit methods, we are limited by the fastest
+# propogating waves described by our governing equations. In our case,
+# these are the acoustic wave speeds (approximately 343 m/s).
+# For the rising bubble example used here, we use 4th order polynomials in
+# our discontinuous Galerkin approximation, with a domain resolution of
+# 125 meters in each spatial direction. This gives an effective
+# minimanl node-distance (distance between LGL nodes) of 86 meters
+# over the entire mesh. Using the equation for the explciit time-step above,
+# we can determine our $\Delta t$ by specifying our desired Courant number $C$.
+# In our case, a heuristically determined value of 0.4 is used.
 
 ode_solver = ClimateMachine.ExplicitSolverType(
     solver_method = LSRK54CarpenterKennedy,
 )
-CFL = FT(0.6)
-timeend = FT(100)
-run_simulation(ode_solver, CFL, timeend)
+C = FT(0.4)
+run_simulation(ode_solver, C, timeend)
 
-# Let's try to take a larger time-step:
+# What if we wish to take a larger timestep size? To do this, we can
+# try to increase the target Courant number, say $C = 1.7$, and
+# re-run the simulation:
+C = FT(1.7)
+try
+    run_simulation(ode_solver, C, timeend)
+catch err
+    @assert isa(err, DomainError)
+    println("The simulation blew up!")
+end
 
-CFL = FT(1.7)
-run_simulation(ode_solver, CFL, timeend)
-
-# Oh-no it breaks!
-# Now we try using a 14-stage method. Due to its larger
-# stability region, we can take a larger time-step size
-# compared to the previous 5-stage method:
+# Oh-no, it breaks! What has happened in this case is our simulation
+# has gone unstable and crashed. This occurs when the time-step
+# _exceeds_ the maximal stable time-step size of the method. For
+# the 5-stage method, one can typically get away with using time-step
+# sizes corresponding to a Courant number of $C \approx 0.4$ but
+# typically not much larger. In contrast, we can use an LSRK method with
+# a larger stability region. Let's try using the 14-stage method instead.
 
 ode_solver = ClimateMachine.ExplicitSolverType(
     solver_method = LSRK144NiegemannDiehlBusch,
 )
-run_simulation(ode_solver, CFL, timeend)
+run_simulation(ode_solver, C, timeend)
+
+# And it completes. Currently, the 14-stage LSRK method `LSRK144NiegemannDiehlBusch`
+# contains the largest stability region of the low-storage methods.
 
 # # Strong Stability Preserving Runge--Kutta methods
 
@@ -128,5 +180,5 @@ run_simulation(ode_solver, CFL, timeend)
 ode_solver = ClimateMachine.ExplicitSolverType(
     solver_method = SSPRK33ShuOsher,
 )
-CFL = FT(1.7)
-run_simulation(ode_solver, CFL, timeend)
+C = FT(0.2)
+run_simulation(ode_solver, C, timeend)

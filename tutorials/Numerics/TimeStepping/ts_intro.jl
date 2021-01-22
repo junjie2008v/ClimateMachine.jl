@@ -1,4 +1,4 @@
-# # Time integration
+# # [Time integration](@id Time-integration)
 
 # Time integration methods for the numerical solution of Ordinary Differential
 # Equations (ODEs), also called timesteppers, can be of different nature and
@@ -33,7 +33,3 @@
 # In both explicit/implicit cases, we refer to the term $\mathcal{G}$
 # as the right-hand-side (RHS) or explicit term, and to the spatial terms of
 # $\mathcal{F}$ as the left-hand-side or implicit term.
-
-# For the particular IVP shown above, we have that
-# $\mathcal{F}(t, \boldsymbol{q}) \equiv 0$
-# and $\mathcal{G}(t, \boldsymbol{q}) \equiv \mathcal{T}(t, \boldsymbol{q})$.

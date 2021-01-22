@@ -1,4 +1,4 @@
-# # Rising Thermal Bubble
+# # [Rising Thermal Bubble Configuration](@id Rising-Thermal-Bubble-Configuration)
 #
 # In this example, we demonstrate the usage of the `ClimateMachine`
 # [AtmosModel](@ref AtmosModel-docs) machinery to solve the fluid
