@@ -7,7 +7,7 @@
 # for details on the model and parameters. For the purposes of this tutorial,
 # we will only run the experiment for a total of 100 simulation seconds.
 
-include("tutorials/Numerics/TimeStepping/tutorial_risingbubble_config.jl")
+include("tutorial_risingbubble_config.jl")
 FT = Float64
 timeend = FT(100)
 
