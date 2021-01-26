@@ -141,8 +141,7 @@ C = FT(1.7)
 try
     run_simulation(ode_solver, C, timeend)
 catch err
-    @assert isa(err, DomainError)
-    println("The simulation blew up!")
+    println("The simulation crashed!")
 end
 
 # Oh-no, it breaks! What has happened in this case is our simulation
