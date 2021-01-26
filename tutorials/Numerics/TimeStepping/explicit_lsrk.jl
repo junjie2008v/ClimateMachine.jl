@@ -138,11 +138,6 @@ run_simulation(ode_solver, C, timeend)
 # try to increase the target Courant number, say $C = 1.7$, and
 # re-run the simulation:
 C = FT(1.7)
-try
-    run_simulation(ode_solver, C, timeend)
-catch err
-    println("The simulation crashed!")
-end
 
 # Oh-no, it breaks! What has happened in this case is our simulation
 # has gone unstable and crashed. This occurs when the time-step
