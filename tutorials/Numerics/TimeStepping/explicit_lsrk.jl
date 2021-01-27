@@ -3,7 +3,7 @@
 # In this tutorial, we shall explore the use of explicit Runge-Kutta
 # methods for the solution of nonautonomous (or non time-invariant) equations.
 # For our model problem, we shall reuse the rising thermal bubble
-# tutorial. See its [tutorial page](@ref ClimateMachine.Tutorials.Atmos.Rising-Thermal-Bubble)
+# tutorial. See its [tutorial page](@ref Rising-Thermal-Bubble-Configuration)
 # for details on the model and parameters. For the purposes of this tutorial,
 # we will only run the experiment for a total of 100 simulation seconds.
 
@@ -12,6 +12,7 @@ include(joinpath(
     "../../../../../",
     "tutorials/Numerics/TimeStepping/tutorial_risingbubble_config.jl",
 ))
+
 FT = Float64
 timeend = FT(100)
 
@@ -27,7 +28,7 @@ timeend = FT(100)
 # $$
 
 # Referencing the canonical form introduced in [`Time integration`](@ref
-# ClimateMachine.Tutorials.Atmos.Time-integration) we have that in any explicit
+# Time-integration) we have that in any explicit
 # formulation $\mathcal{F}(t, \boldsymbol{q}) \equiv 0$ and, in this particular
 # forumlation $\mathcal{T}(t, \boldsymbol{q}) \equiv \mathcal{G}(t, \boldsymbol{q})$.
 
