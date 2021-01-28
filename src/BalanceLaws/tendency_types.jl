@@ -19,6 +19,7 @@ export PrognosticVariable
 export FirstOrder, SecondOrder
 export AbstractTendencyType, Flux, Source
 export TendencyDef
+export eq_tends, prognostic_vars, fluxes, sources
 
 """
     PrognosticVariable
@@ -85,7 +86,6 @@ corresponding to the column-vector `Yᵢ` in:
 """
 prognostic_vars(::BalanceLaw) = ()
 
-export sources
 """
     sources(bl::BalanceLaw)
 
@@ -103,7 +103,6 @@ function sources(bl::BalanceLaw)
     return Tuple(Iterators.flatten(tend))
 end
 
-export fluxes
 """
     fluxes(bl::BalanceLaw, order::O) where {O <: AbstractOrder}
 
