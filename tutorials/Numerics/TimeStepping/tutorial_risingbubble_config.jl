@@ -246,7 +246,7 @@ function config_risingbubble(
         zmax,                    ## Domain maximum size [m]
         param_set,               ## Parameter set.
         init_risingbubble!,      ## Function specifying initial condition
-        # solver_type = ode_solver,## Time-integrator type
+        ## solver_type = ode_solver,## Time-integrator type
         model = model,           ## Model type
     )
     return config
@@ -289,7 +289,7 @@ function run_simulation(ode_solver, CFL, timeend)
     ymax = FT(500)
     zmax = FT(10000)
     t0 = FT(0)
-    # timeend = FT(100)
+    ## timeend = FT(100)
     ## For full simulation set `timeend = 1000`
 
     driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
