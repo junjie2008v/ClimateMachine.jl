@@ -256,7 +256,7 @@ end
 #md #     `Keywords` are used to specify some arguments (see appropriate source
 #md #     files).
 
-# ## [Diagnostics](@id config_diagnostics)
+# ## Diagnostics
 # Here we define the diagnostic configuration specific to this problem.
 function config_diagnostics(driver_config)
     interval = "10000steps"
