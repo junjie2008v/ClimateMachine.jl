@@ -3,6 +3,7 @@ using KernelAbstractions
 
 using ..Mesh.Geometry
 using ..VariableTemplates
+using ..DGMethods.FTP
 
 import ..Mesh.Grids:
     _ξ1x1, _ξ2x1, _ξ3x1, _ξ1x2, _ξ2x2, _ξ3x2, _ξ1x3, _ξ2x3, _ξ3x3
@@ -102,27 +103,86 @@ function VectorGradients(dg::SpaceDiscretization, Q::MPIStateArray)
 
     ind = varsindices(vars_state(bl, Prognostic(), FT), ("ρ", "ρu"))
     _ρ, _ρu, _ρv, _ρw = ind[1], ind[2], ind[3], ind[4]
-    device = array_device(Q)
-    comp_stream = Event(device)
-    workgroup = (Nqmax, Nqmax)
-    ndrange = (nrealelem * Nqmax, Nqmax)
-    comp_stream = vector_gradients_kernel!(device, workgroup)(
-        Q.realdata,
-        dg.grid.D,
-        dg.grid.vgeo,
-        g,
-        data,
-        _ρ,
-        _ρu,
-        _ρv,
-        _ρw,
-        Val(Nq),
-        Val(Nqmax),
-        ndrange = ndrange,
-        dependencies = (comp_stream,),
-    )
-    wait(comp_stream)
+    println("timing old version")
+    for i in 1:10
+        @time begin
+            device = array_device(Q)
+            comp_stream = Event(device)
+            workgroup = (Nqmax, Nqmax)
+            ndrange = (nrealelem * Nqmax, Nqmax)
+            comp_stream = vector_gradients_kernel!(device, workgroup)(
+                Q.realdata,
+                dg.grid.D,
+                dg.grid.vgeo,
+                g,
+                data,
+                _ρ,
+                _ρu,
+                _ρv,
+                _ρw,
+                Val(Nq),
+                Val(Nqmax),
+                ndrange = ndrange,
+                dependencies = (comp_stream,),
+            )
+            wait(comp_stream)
+        end
+    end
+    #-----testing-----------------------------
+    ρ = view(Q.data, :, _ρ, 1:nrealelem)
+    ρu = view(Q.data, :, _ρu, 1:nrealelem)
+    ρv = view(Q.data, :, _ρv, 1:nrealelem)
+    ρw = view(Q.data, :, _ρw, 1:nrealelem)
 
+    ξ1x1 = view(dg.grid.vgeo, :, _ξ1x1, :)
+    ξ1x2 = view(dg.grid.vgeo, :, _ξ1x2, :)
+    ξ1x3 = view(dg.grid.vgeo, :, _ξ1x3, :)
+    ξ2x1 = view(dg.grid.vgeo, :, _ξ2x1, :)
+    ξ2x2 = view(dg.grid.vgeo, :, _ξ2x2, :)
+    ξ2x3 = view(dg.grid.vgeo, :, _ξ2x3, :)
+    ξ3x1 = view(dg.grid.vgeo, :, _ξ3x1, :)
+    ξ3x2 = view(dg.grid.vgeo, :, _ξ3x2, :)
+    ξ3x3 = view(dg.grid.vgeo, :, _ξ3x3, :)
+
+    ∂₁u₁, ∂₂u₁, ∂₃u₁ =
+        view(data, :, 1, :), view(data, :, 2, :), view(data, :, 3, :)
+    ∂₁u₂, ∂₂u₂, ∂₃u₂ =
+        view(data, :, 4, :), view(data, :, 5, :), view(data, :, 6, :)
+    ∂₁u₃, ∂₂u₃, ∂₃u₃ =
+        view(data, :, 7, :), view(data, :, 8, :), view(data, :, 9, :)
+
+    ∂f∂ξ₁ = view(dg.grid.m1_storage, :, 1, :)
+    ∂f∂ξ₂ = view(dg.grid.m1_storage, :, 2, :)
+    ∂f∂ξ₃ = view(dg.grid.m1_storage, :, 3, :)
+    println("timing new version")
+    for i in 1:10
+        @time begin
+            ftpxv!(dg.grid, :m1, :∂ξ₁, false, ρu, ∂f∂ξ₁, vin_den = ρ)
+            ftpxv!(dg.grid, :m1, :∂ξ₂, false, ρu, ∂f∂ξ₂, vin_den = ρ)
+            ftpxv!(dg.grid, :m1, :∂ξ₃, false, ρu, ∂f∂ξ₃, vin_den = ρ)
+
+            ∂₁u₁ .= ∂f∂ξ₁ .* ξ1x1 .+ ∂f∂ξ₂ .* ξ2x1 .+ ∂f∂ξ₃ .* ξ3x1
+            ∂₂u₁ .= ∂f∂ξ₁ .* ξ1x2 .+ ∂f∂ξ₂ .* ξ2x2 .+ ∂f∂ξ₃ .* ξ3x2
+            ∂₃u₁ .= ∂f∂ξ₁ .* ξ1x3 .+ ∂f∂ξ₂ .* ξ2x3 .+ ∂f∂ξ₃ .* ξ3x3
+
+            ftpxv!(dg.grid, :m1, :∂ξ₁, false, ρv, ∂f∂ξ₁, vin_den = ρ)
+            ftpxv!(dg.grid, :m1, :∂ξ₂, false, ρv, ∂f∂ξ₂, vin_den = ρ)
+            ftpxv!(dg.grid, :m1, :∂ξ₃, false, ρv, ∂f∂ξ₃, vin_den = ρ)
+
+            ∂₁u₂ .= ∂f∂ξ₁ .* ξ1x1 .+ ∂f∂ξ₂ .* ξ2x1 .+ ∂f∂ξ₃ .* ξ3x1
+            ∂₂u₂ .= ∂f∂ξ₁ .* ξ1x2 .+ ∂f∂ξ₂ .* ξ2x2 .+ ∂f∂ξ₃ .* ξ3x2
+            ∂₃u₂ .= ∂f∂ξ₁ .* ξ1x3 .+ ∂f∂ξ₂ .* ξ2x3 .+ ∂f∂ξ₃ .* ξ3x3
+
+            ftpxv!(dg.grid, :m1, :∂ξ₁, false, ρw, ∂f∂ξ₁, vin_den = ρ)
+            ftpxv!(dg.grid, :m1, :∂ξ₂, false, ρw, ∂f∂ξ₂, vin_den = ρ)
+            ftpxv!(dg.grid, :m1, :∂ξ₃, false, ρw, ∂f∂ξ₃, vin_den = ρ)
+
+            ∂₁u₃ .= ∂f∂ξ₁ .* ξ1x1 .+ ∂f∂ξ₂ .* ξ2x1 .+ ∂f∂ξ₃ .* ξ3x1
+            ∂₂u₃ .= ∂f∂ξ₁ .* ξ1x2 .+ ∂f∂ξ₂ .* ξ2x2 .+ ∂f∂ξ₃ .* ξ3x2
+            ∂₃u₃ .= ∂f∂ξ₁ .* ξ1x3 .+ ∂f∂ξ₂ .* ξ2x3 .+ ∂f∂ξ₃ .* ξ3x3
+        end
+    end
+    #-----------------------------------------
     return VectorGradients(data)
 end
 
@@ -154,7 +214,7 @@ end
     end
     @synchronize
 
-    for t in 1:qm[3], s in 1:qm[2]
+    @inbounds for t in 1:qm[3], s in 1:qm[2]
         if i ≤ qm[1] && j ≤ qm[1]
             ijk = j + ((s - 1) + (t - 1) * qm[2]) * qm[1]
             s_U[i, j] = s_D[i, j] * (sv[ijk, _ρu, e] / sv[ijk, _ρ, e])
@@ -163,7 +223,7 @@ end
         end
         @synchronize
         if j == 1
-            for r in 2:qm[1]
+            @inbounds for r in 2:qm[1]
                 s_U[i, 1] += s_U[i, r]
                 s_V[i, 1] += s_V[i, r]
                 s_W[i, 1] += s_W[i, r]
@@ -175,15 +235,15 @@ end
             g[i + ((s - 1) + (t - 1) * qm[2]) * qm[1], e, 2, 1] = s_V[i, 1] # ∂u₂∂ξ₁
             g[i + ((s - 1) + (t - 1) * qm[2]) * qm[1], e, 3, 1] = s_W[i, 1] # ∂u₃∂ξ₁
         end
+        @synchronize
     end
-    @synchronize
     # computing derivatives with respect to ξ2
     if i ≤ qm[2] && j ≤ qm[2]
         s_D[i, j] = D[2][i, j]
     end
     @synchronize
 
-    for t in 1:qm[3], r in 1:qm[1]
+    @inbounds for t in 1:qm[3], r in 1:qm[1]
         if i ≤ qm[2] && j ≤ qm[2]
             ijk = r + ((j - 1) + (t - 1) * qm[2]) * qm[1]
             s_U[i, j] = s_D[i, j] * (sv[ijk, _ρu, e] / sv[ijk, _ρ, e])
@@ -204,8 +264,8 @@ end
             g[r + ((i - 1) + (t - 1) * qm[2]) * qm[1], e, 2, 2] = s_V[i, 1] # ∂u₂∂ξ₂
             g[r + ((i - 1) + (t - 1) * qm[2]) * qm[1], e, 3, 2] = s_W[i, 1] # ∂u₃∂ξ₂
         end
+        @synchronize
     end
-    @synchronize
     # computing derivatives with respect to ξ3
     if i ≤ qm[3] && j ≤ qm[3]
         s_D[i, j] = D[3][i, j]
@@ -213,7 +273,7 @@ end
     @synchronize
 
 
-    for s in 1:qm[2], r in 1:qm[1]
+    @inbounds for s in 1:qm[2], r in 1:qm[1]
         if i ≤ qm[3] && j ≤ qm[3]
             ijk = r + ((s - 1) + (j - 1) * qm[2]) * qm[1]
             s_U[i, j] = s_D[i, j] * (sv[ijk, _ρu, e] / sv[ijk, _ρ, e])
@@ -234,15 +294,15 @@ end
             g[r + ((s - 1) + (i - 1) * qm[2]) * qm[1], e, 2, 3] = s_V[i, 1] # ∂u₂∂ξ₃
             g[r + ((s - 1) + (i - 1) * qm[2]) * qm[1], e, 3, 3] = s_W[i, 1] # ∂u₃∂ξ₃
         end
+        @synchronize
     end
-    @synchronize
 
     ∂₁u₁, ∂₂u₁, ∂₃u₁ = 1, 2, 3
     ∂₁u₂, ∂₂u₂, ∂₃u₂ = 4, 5, 6
     ∂₁u₃, ∂₂u₃, ∂₃u₃ = 7, 8, 9
 
     if i ≤ qm[1] && j ≤ qm[2]
-        for k in 1:qm[3]
+        @inbounds for k in 1:qm[3]
             ijk = i + ((j - 1) + (k - 1) * qm[2]) * qm[1]
 
             ξ1x1 = vgeo[ijk, _ξ1x1, e]
@@ -361,36 +421,17 @@ function Vorticity(dg::SpaceDiscretization, vgrad::VectorGradients)
 
     data = similar(vgrad.data, npoints, 3, nrealelem)
 
-    device = array_device(data)
-    comp_stream = Event(device)
-    thr_max = 256
-    thr_x = min(thr_max, npoints)
-    workgroup = (thr_x, 1)
-    ndrange = (npoints, nrealelem)
-
-    comp_stream = vorticity_kernel!(device, workgroup)(
-        vgrad.data,
-        data,
-        ndrange = ndrange,
-        dependencies = (comp_stream,),
-    )
-    wait(comp_stream)
-
-    return Vorticity(data)
-end
-
-@kernel function vorticity_kernel!(
-    vgrad_data::AbstractArray{FT, 3},
-    vort_data::AbstractArray{FT, 3},
-) where {FT <: AbstractFloat}
-    ijk, e = @index(Global, NTuple)
-
     ∂₁u₁, ∂₂u₁, ∂₃u₁ = 1, 2, 3
     ∂₁u₂, ∂₂u₂, ∂₃u₂ = 4, 5, 6
     ∂₁u₃, ∂₂u₃, ∂₃u₃ = 7, 8, 9
     Ω₁, Ω₂, Ω₃ = 1, 2, 3
 
-    vort_data[ijk, Ω₁, e] = vgrad_data[ijk, ∂₂u₃, e] - vgrad_data[ijk, ∂₃u₂, e]
-    vort_data[ijk, Ω₂, e] = vgrad_data[ijk, ∂₃u₁, e] - vgrad_data[ijk, ∂₁u₃, e]
-    vort_data[ijk, Ω₃, e] = vgrad_data[ijk, ∂₁u₂, e] - vgrad_data[ijk, ∂₂u₁, e]
+    data[:, Ω₁, :] .=
+        view(vgrad.data, :, ∂₂u₃, :) .- view(vgrad.data, :, ∂₃u₂, :)
+    data[:, Ω₂, :] .=
+        view(vgrad.data, :, ∂₃u₁, :) .- view(vgrad.data, :, ∂₁u₃, :)
+    data[:, Ω₃, :] .=
+        view(vgrad.data, :, ∂₁u₂, :) .- view(vgrad.data, :, ∂₂u₁, :)
+
+    return Vorticity(data)
 end
