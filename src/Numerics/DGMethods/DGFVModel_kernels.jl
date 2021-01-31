@@ -310,7 +310,7 @@ A finite volume reconstruction is used to construction `Fⁱⁿᵛ⋆`
             local_state_auxiliary[stencil_center - 1] .=
                 local_state_auxiliary[stencil_center]
 
-            numerical_boundary_flux_first_order!(
+            numerical_boundary_flux_first_order_arr!(
                 numerical_flux_first_order,
                 bctag,
                 balance_law,
@@ -607,7 +607,7 @@ A finite volume reconstruction is used to construction `Fⁱⁿᵛ⋆`
                         local_state_face_prognostic[2]
                     local_state_auxiliary[stencil_center - 1] .=
                         local_state_auxiliary[stencil_center]
-                    numerical_boundary_flux_first_order!(
+                    numerical_boundary_flux_first_order_arr!(
                         numerical_flux_first_order,
                         bctag,
                         balance_law,

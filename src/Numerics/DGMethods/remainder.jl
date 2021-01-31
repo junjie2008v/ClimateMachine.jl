@@ -441,21 +441,21 @@ import ..DGMethods.NumericalFluxes:
     normal_boundary_flux_second_order!
 
 """
-    function numerical_flux_first_order!(
+    numerical_flux_first_order_arr!(
         numerical_fluxes::Tuple{
             NumericalFluxFirstOrder,
             NTuple{NumSubFluxes, NumericalFluxFirstOrder},
         },
         rem_balance_law::RemBL,
-        fluxᵀn::Vars{S},
-        normal_vector::SVector,
-        state_prognostic⁻::Vars{S},
-        state_auxiliary⁻::Vars{A},
-        state_prognostic⁺::Vars{S},
-        state_auxiliary⁺::Vars{A},
+        fluxᵀn::AbstractArray,
+        normal_vector::AbstractArray,
+        state_prognostic⁻::AbstractArray,
+        state_auxiliary⁻::AbstractArray,
+        state_prognostic⁺::AbstractArray,
+        state_auxiliary⁺::AbstractArray,
         t,
-        directions,
-    )
+        ::Dirs,
+    ) where {NumSubFluxes, S, A, Dirs <: NTuple{2, Direction}}
 
 When the `numerical_fluxes` are a tuple and the balance law is a remainder
 balance law the main components numerical flux is evaluated then all the
@@ -465,24 +465,24 @@ Only models which have directions that are included in the `directions` tuple
 are evaluated. When these models are evaluated the models underlying `direction`
 is passed (not the original `directions` argument).
 """
-function numerical_flux_first_order!(
+function numerical_flux_first_order_arr!(
     numerical_fluxes::Tuple{
         NumericalFluxFirstOrder,
         NTuple{NumSubFluxes, NumericalFluxFirstOrder},
     },
     rem_balance_law::RemBL,
-    fluxᵀn::Vars{S},
-    normal_vector::SVector,
-    state_prognostic⁻::Vars{S},
-    state_auxiliary⁻::Vars{A},
-    state_prognostic⁺::Vars{S},
-    state_auxiliary⁺::Vars{A},
+    fluxᵀn::AbstractArray,
+    normal_vector::AbstractArray,
+    state_prognostic⁻::AbstractArray,
+    state_auxiliary⁻::AbstractArray,
+    state_prognostic⁺::AbstractArray,
+    state_auxiliary⁺::AbstractArray,
     t,
     ::Dirs,
 ) where {NumSubFluxes, S, A, Dirs <: NTuple{2, Direction}}
     # Call the numerical flux for the main model
     if rem_balance_law.maindir isa Union{Dirs.types...}
-        @inbounds numerical_flux_first_order!(
+        @inbounds numerical_flux_first_order_arr!(
             numerical_fluxes[1],
             rem_balance_law.main,
             fluxᵀn,
@@ -497,7 +497,7 @@ function numerical_flux_first_order!(
     end
 
     # Create put the sub model fluxes
-    a_fluxᵀn = parent(fluxᵀn)
+    a_fluxᵀn = fluxᵀn
 
     # Force the loop to unroll to get type stability on the GPU
     ntuple(Val(length(rem_balance_law.subs))) do k
@@ -515,23 +515,19 @@ function numerical_flux_first_order!(
 
             state_rng = static(1):static(number_states(sub, Prognostic()))
             a_sub_fluxᵀn .= a_fluxᵀn[state_rng]
-            a_sub_state_prognostic⁻ .= parent(state_prognostic⁻)[state_rng]
-            a_sub_state_prognostic⁺ .= parent(state_prognostic⁺)[state_rng]
+            a_sub_state_prognostic⁻ .= state_prognostic⁻[state_rng]
+            a_sub_state_prognostic⁺ .= state_prognostic⁺[state_rng]
 
             # compute this submodels flux
             fill!(a_sub_fluxᵀn, -zero(eltype(a_sub_fluxᵀn)))
-            numerical_flux_first_order!(
+            numerical_flux_first_order_arr!(
                 nf,
                 sub,
-                Vars{vars_state(sub, Prognostic(), FT)}(a_sub_fluxᵀn),
+                a_sub_fluxᵀn,
                 normal_vector,
-                Vars{vars_state(sub, Prognostic(), FT)}(
-                    a_sub_state_prognostic⁻,
-                ),
+                a_sub_state_prognostic⁻,
                 state_auxiliary⁻,
-                Vars{vars_state(sub, Prognostic(), FT)}(
-                    a_sub_state_prognostic⁺,
-                ),
+                a_sub_state_prognostic⁺,
                 state_auxiliary⁺,
                 t,
                 (rem_balance_law.subsdir[k],),
@@ -544,23 +540,24 @@ function numerical_flux_first_order!(
 end
 
 """
-    function numerical_boundary_flux_first_order!(
+    numerical_boundary_flux_first_order_arr!(
         numerical_fluxes::Tuple{
             NumericalFluxFirstOrder,
             NTuple{NumSubFluxes, NumericalFluxFirstOrder},
         },
         bc,
         rem_balance_law::RemBL,
-        fluxᵀn::Vars{S},
+        fluxᵀn::AbstractArray,
         normal_vector::SVector,
-        state_prognostic⁻::Vars{S},
-        state_auxiliary⁻::Vars{A},
-        state_prognostic⁺::Vars{S},
-        state_auxiliary⁺::Vars{A},
+        state_prognostic⁻::AbstractArray,
+        state_auxiliary⁻::AbstractArray,
+        state_prognostic⁺::AbstractArray,
+        state_auxiliary⁺::AbstractArray,
         t,
-        directions,
-        args...,
-    )
+        ::Dirs,
+        state_prognostic1⁻::AbstractArray,
+        state_auxiliary1⁻::AbstractArray,
+    ) where {NumSubFluxes, Dirs <: NTuple{2, Direction}}
 
 When the `numerical_fluxes` are a tuple and the balance law is a remainder
 balance law the main components numerical flux is evaluated then all the
@@ -570,28 +567,28 @@ Only models which have directions that are included in the `directions` tuple
 are evaluated. When these models are evaluated the models underlying `direction`
 is passed (not the original `directions` argument).
 """
-function numerical_boundary_flux_first_order!(
+function numerical_boundary_flux_first_order_arr!(
     numerical_fluxes::Tuple{
         NumericalFluxFirstOrder,
         NTuple{NumSubFluxes, NumericalFluxFirstOrder},
     },
     bc,
     rem_balance_law::RemBL,
-    fluxᵀn::Vars{S},
+    fluxᵀn::AbstractArray,
     normal_vector::SVector,
-    state_prognostic⁻::Vars{S},
-    state_auxiliary⁻::Vars{A},
-    state_prognostic⁺::Vars{S},
-    state_auxiliary⁺::Vars{A},
+    state_prognostic⁻::AbstractArray,
+    state_auxiliary⁻::AbstractArray,
+    state_prognostic⁺::AbstractArray,
+    state_auxiliary⁺::AbstractArray,
     t,
     ::Dirs,
-    state_prognostic1⁻::Vars{S},
-    state_auxiliary1⁻::Vars{A},
-) where {NumSubFluxes, S, A, Dirs <: NTuple{2, Direction}}
+    state_prognostic1⁻::AbstractArray,
+    state_auxiliary1⁻::AbstractArray,
+) where {NumSubFluxes, Dirs <: NTuple{2, Direction}}
     # Since the fluxes are allowed to modified these we need backups so they can
     # be reset as we go
-    a_state_prognostic⁺ = parent(state_prognostic⁺)
-    a_state_auxiliary⁺ = parent(state_auxiliary⁺)
+    a_state_prognostic⁺ = state_prognostic⁺
+    a_state_auxiliary⁺ = state_auxiliary⁺
 
     a_back_state_prognostic⁺ = copy(a_state_prognostic⁺)
     a_back_state_auxiliary⁺ = copy(a_state_auxiliary⁺)
@@ -599,7 +596,7 @@ function numerical_boundary_flux_first_order!(
 
     # Call the numerical flux for the main model
     if rem_balance_law.maindir isa Union{Dirs.types...}
-        @inbounds numerical_boundary_flux_first_order!(
+        @inbounds numerical_boundary_flux_first_order_arr!(
             numerical_fluxes[1],
             bc,
             rem_balance_law.main,
@@ -617,7 +614,7 @@ function numerical_boundary_flux_first_order!(
     end
 
     # Create put the sub model fluxes
-    a_fluxᵀn = parent(fluxᵀn)
+    a_fluxᵀn = fluxᵀn
 
     # Force the loop to unroll to get type stability on the GPU
     ntuple(Val(length(rem_balance_law.subs))) do k
@@ -640,32 +637,26 @@ function numerical_boundary_flux_first_order!(
 
             state_rng = static(1):static(number_states(sub, Prognostic()))
             a_sub_fluxᵀn .= a_fluxᵀn[state_rng]
-            a_sub_state_prognostic⁻ .= parent(state_prognostic⁻)[state_rng]
-            a_sub_state_prognostic⁺ .= parent(state_prognostic⁺)[state_rng]
-            a_sub_state_prognostic1⁻ .= parent(state_prognostic1⁻)[state_rng]
+            a_sub_state_prognostic⁻ .= state_prognostic⁻[state_rng]
+            a_sub_state_prognostic⁺ .= state_prognostic⁺[state_rng]
+            a_sub_state_prognostic1⁻ .= state_prognostic1⁻[state_rng]
 
 
             # compute this submodels flux
             fill!(a_sub_fluxᵀn, -zero(eltype(a_sub_fluxᵀn)))
-            numerical_boundary_flux_first_order!(
+            numerical_boundary_flux_first_order_arr!(
                 nf,
                 bc,
                 sub,
-                Vars{vars_state(sub, Prognostic(), FT)}(a_sub_fluxᵀn),
+                a_sub_fluxᵀn,
                 normal_vector,
-                Vars{vars_state(sub, Prognostic(), FT)}(
-                    a_sub_state_prognostic⁻,
-                ),
+                a_sub_state_prognostic⁻,
                 state_auxiliary⁻,
-                Vars{vars_state(sub, Prognostic(), FT)}(
-                    a_sub_state_prognostic⁺,
-                ),
+                a_sub_state_prognostic⁺,
                 state_auxiliary⁺,
                 t,
                 (rem_balance_law.subsdir[k],),
-                Vars{vars_state(sub, Prognostic(), FT)}(
-                    a_sub_state_prognostic1⁻,
-                ),
+                a_sub_state_prognostic1⁻,
                 state_auxiliary1⁻,
             )
 

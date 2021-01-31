@@ -526,6 +526,19 @@ function numerical_flux_divergence!(
         (parent(grad⁺) .+ parent(grad⁻))' * (normal_vector / 2)
 end
 
+function numerical_flux_divergence_arr!(
+    ::CentralNumericalFluxDivergence,
+    balance_law::BalanceLaw,
+    div_penalty::AbstractArray,
+    normal_vector::SVector,
+    grad⁻::AbstractArray,
+    grad⁺::AbstractArray,
+)
+    n̂ = SVector(normal_vector)
+    div_penalty .= (grad⁺ .+ grad⁻)' * (n̂ / 2)
+end
+
+
 function numerical_boundary_flux_divergence!(
     numerical_flux::CentralNumericalFluxDivergence,
     bctype,
@@ -755,34 +768,6 @@ function boundary_flux_second_order!(
     )
 end
 
-# Array wrappers for numerical Fluxes
-function numerical_flux_first_order!(
-    numerical_flux_first_order,
-    balance_law,
-    flux::AbstractArray,
-    normal_vector::AbstractArray,
-    state_prognostic⁻::AbstractArray,
-    state_auxiliary⁻::AbstractArray,
-    state_prognostic⁺::AbstractArray,
-    state_auxiliary⁺::AbstractArray,
-    t,
-    face_direction,
-)
-    FT = eltype(flux)
-    numerical_flux_first_order!(
-        numerical_flux_first_order,
-        balance_law,
-        Vars{vars_state(balance_law, Prognostic(), FT)}(flux),
-        SVector(normal_vector),
-        Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁻),
-        Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁻),
-        Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁺),
-        Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁺),
-        t,
-        face_direction,
-    )
-end
-
 function numerical_boundary_flux_first_order!(
     numerical_flux_first_order,
     bctag::Int,
@@ -803,63 +788,22 @@ function numerical_boundary_flux_first_order!(
     # TODO: there is probably a better way to unroll this loop
     Base.Cartesian.@nif 7 d -> bctag == d <= length(bcs) d -> begin
         bc = bcs[d]
-        numerical_boundary_flux_first_order!(
+        numerical_boundary_flux_first_order_arr!(
             numerical_flux_first_order,
             bc,
             balance_law,
-            Vars{vars_state(balance_law, Prognostic(), FT)}(flux),
-            SVector(normal_vector),
-            Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁻),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁻),
-            Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁺),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁺),
+            flux,
+            normal_vector,
+            state_prognostic⁻,
+            state_auxiliary⁻,
+            state_prognostic⁺,
+            state_auxiliary⁺,
             t,
             face_direction,
-            Vars{vars_state(balance_law, Prognostic(), FT)}(
-                state_prognostic_bottom1,
-            ),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(
-                state_auxiliary_bottom1,
-            ),
+            state_prognostic_bottom1,
+            state_auxiliary_bottom1,
         )
     end
-end
-
-function numerical_flux_second_order!(
-    numerical_flux_second_order,
-    balance_law,
-    flux::AbstractArray,
-    normal_vector::AbstractArray,
-    state_prognostic⁻::AbstractArray,
-    state_gradient_flux⁻::AbstractArray,
-    state_hyperdiffusive⁻::AbstractArray,
-    state_auxiliary⁻::AbstractArray,
-    state_prognostic⁺::AbstractArray,
-    state_gradient_flux⁺::AbstractArray,
-    state_hyperdiffusive⁺::AbstractArray,
-    state_auxiliary⁺::AbstractArray,
-    t,
-)
-    FT = eltype(flux)
-    numerical_flux_second_order!(
-        numerical_flux_second_order,
-        balance_law,
-        Vars{vars_state(balance_law, Prognostic(), FT)}(flux),
-        SVector(normal_vector),
-        Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁻),
-        Vars{vars_state(balance_law, GradientFlux(), FT)}(state_gradient_flux⁻),
-        Vars{vars_state(balance_law, Hyperdiffusive(), FT)}(
-            state_hyperdiffusive⁻,
-        ),
-        Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁻),
-        Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁺),
-        Vars{vars_state(balance_law, GradientFlux(), FT)}(state_gradient_flux⁺),
-        Vars{vars_state(balance_law, Hyperdiffusive(), FT)}(
-            state_hyperdiffusive⁺,
-        ),
-        Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁺),
-        t,
-    )
 end
 
 function numerical_boundary_flux_second_order!(
@@ -886,38 +830,24 @@ function numerical_boundary_flux_second_order!(
     # TODO: there is probably a better way to unroll this loop
     Base.Cartesian.@nif 7 d -> bctag == d <= length(bcs) d -> begin
         bc = bcs[d]
-        numerical_boundary_flux_second_order!(
+        numerical_boundary_flux_second_order_arr!(
             numerical_flux_second_order,
             bc,
             balance_law,
-            Vars{vars_state(balance_law, Prognostic(), FT)}(flux),
-            SVector(normal_vector),
-            Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁻),
-            Vars{vars_state(balance_law, GradientFlux(), FT)}(
-                state_gradient_flux⁻,
-            ),
-            Vars{vars_state(balance_law, Hyperdiffusive(), FT)}(
-                state_hyperdiffusive⁻,
-            ),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁻),
-            Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁺),
-            Vars{vars_state(balance_law, GradientFlux(), FT)}(
-                state_gradient_flux⁺,
-            ),
-            Vars{vars_state(balance_law, Hyperdiffusive(), FT)}(
-                state_hyperdiffusive⁺,
-            ),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁺),
+            flux,
+            normal_vector,
+            state_prognostic⁻,
+            state_gradient_flux⁻,
+            state_hyperdiffusive⁻,
+            state_auxiliary⁻,
+            state_prognostic⁺,
+            state_gradient_flux⁺,
+            state_hyperdiffusive⁺,
+            state_auxiliary⁺,
             t,
-            Vars{vars_state(balance_law, Prognostic(), FT)}(
-                state_prognostic_bottom1,
-            ),
-            Vars{vars_state(balance_law, GradientFlux(), FT)}(
-                state_gradient_flux_bottom1,
-            ),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(
-                state_auxiliary_bottom1,
-            ),
+            state_prognostic_bottom1,
+            state_gradient_flux_bottom1,
+            state_auxiliary_bottom1,
         )
     end
 end
@@ -944,25 +874,21 @@ function numerical_boundary_flux_gradient!(
     Base.Cartesian.@nif 7 d -> bctag == d <= length(bcs) d -> begin
         bc = bcs[d]
         # Computes G* incorporating boundary conditions
-        numerical_boundary_flux_gradient!(
+        numerical_boundary_flux_gradient_arr!(
             numerical_flux_gradient,
             bc,
             balance_law,
             flux,
-            SVector(normal_vector),
-            Vars{vars_state(balance_law, Gradient(), FT)}(state_gradient⁻),
-            Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁻),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁻),
-            Vars{vars_state(balance_law, Gradient(), FT)}(state_gradient⁺),
-            Vars{vars_state(balance_law, Prognostic(), FT)}(state_prognostic⁺),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(state_auxiliary⁺),
+            normal_vector,
+            state_gradient⁻,
+            state_prognostic⁻,
+            state_auxiliary⁻,
+            state_gradient⁺,
+            state_prognostic⁺,
+            state_auxiliary⁺,
             t,
-            Vars{vars_state(balance_law, Prognostic(), FT)}(
-                state_prognostic_bottom1,
-            ),
-            Vars{vars_state(balance_law, Auxiliary(), FT)}(
-                state_auxiliary_bottom1,
-            ),
+            state_prognostic_bottom1,
+            state_auxiliary_bottom1,
         )
     end
 end
